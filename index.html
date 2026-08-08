@@ -459,8 +459,10 @@
           btn.disabled = false; btn.textContent = "Submit entry";
           return;
         }
+        const confirmCode = "DK-" + String(Date.now()).slice(-6);
         const entry = {
           ts: Date.now(),
+          confirmCode: confirmCode,
           name: val_('f-name'),
           handle: handle,
           facebookProfile: val_('f-facebook'),
@@ -474,7 +476,6 @@
           taskLabels: cfg.tasks.map(t => ({ id: t.id, label: t.label }))
         };
         await saveEntry(entry);
-        const confirmCode = "DK-" + String(entry.ts).slice(-6);
         root.innerHTML = `
           <div class="card" style="text-align:center;">
             <div style="font-size:30px; margin-bottom:8px;">🎉</div>
@@ -731,7 +732,10 @@
       if (!raw){ resultEl.innerHTML = ''; return; }
       resultEl.innerHTML = `<div style="color:#7a8891;font-size:13px;">Searching…</div>`;
       const allEntries = await listEntries(); // searches across all campaigns
-      const match = allEntries.find(en => String(en.ts).slice(-6) === raw);
+      const match = allEntries.find(en => {
+        const stored = (en.confirmCode || '').replace(/^DK-?/, '');
+        return stored === raw || String(en.ts).slice(-6) === raw;
+      });
       if (!match){
         resultEl.innerHTML = `<div class="msg err" style="margin:0;">No entry found with that code.</div>`;
         return;
