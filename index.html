@@ -548,6 +548,16 @@
       </div>
 
       <div class="card">
+        <h2>Find entry by confirmation code</h2>
+        <p class="lede">Entrant emails you a code like DK-698452? Look it up here — searches across all campaigns, not just the one selected below.</p>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="code-lookup" placeholder="DK-698452 or just 698452" style="flex:1;" />
+          <button class="btn secondary" id="code-search" type="button" style="white-space:nowrap;">Find</button>
+        </div>
+        <div id="code-result" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="card">
         <h2>Quick handle check</h2>
         <p class="lede">Paste any Instagram handle to jump straight to their profile — a faster way to eyeball follows while you're reviewing entries. This doesn't verify anything automatically; it just skips the typing/searching.</p>
         <div style="display:flex; gap:10px;">
@@ -713,6 +723,31 @@
     });
     document.getElementById('quick-handle').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') document.getElementById('quick-open').click();
+    });
+
+    async function runCodeSearch(){
+      const resultEl = document.getElementById('code-result');
+      const raw = document.getElementById('code-lookup').value.trim().toUpperCase().replace(/^DK-?/, '');
+      if (!raw){ resultEl.innerHTML = ''; return; }
+      resultEl.innerHTML = `<div style="color:#7a8891;font-size:13px;">Searching…</div>`;
+      const allEntries = await listEntries(); // searches across all campaigns
+      const match = allEntries.find(en => String(en.ts).slice(-6) === raw);
+      if (!match){
+        resultEl.innerHTML = `<div class="msg err" style="margin:0;">No entry found with that code.</div>`;
+        return;
+      }
+      const statusLabel = match.eligible === true ? "Eligible" : match.eligible === false ? "Rejected" : "Pending review";
+      resultEl.innerHTML = `
+        <div class="task-row" style="flex-direction:column;align-items:stretch;">
+          <div style="font-weight:700;">${esc(match.name)} — ${esc(match.handle || 'no handle')}</div>
+          <div style="color:#7a8891;font-size:13px;">${esc(match.email || '')}</div>
+          <div style="color:#7a8891;font-size:13px;">Campaign: ${esc(match.campaign || '')}</div>
+          <div style="margin-top:6px;"><span class="pill ${match.eligible===true?'confirmed':match.eligible===false?'no':'eligible'}">${esc(statusLabel)}</span></div>
+        </div>`;
+    }
+    document.getElementById('code-search').addEventListener('click', runCodeSearch);
+    document.getElementById('code-lookup').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runCodeSearch();
     });
 
     // task editor rows
