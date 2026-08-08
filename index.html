@@ -345,6 +345,12 @@
         <div class="eyebrow">${esc(cfg.campaignName)}</div>
         <h1>Complete the tasks, get your entry</h1>
         <p class="lede">Finish everything below, submit your details, and you're in the draw. We manually check proof before winners are confirmed — fair and square.</p>
+        ${cfg.description ? `<p class="lede" style="margin-top:-10px;">${esc(cfg.description)}</p>` : ''}
+        ${cfg.rules ? `
+        <details style="margin-bottom:18px;">
+          <summary style="cursor:pointer; font-weight:600; font-size:13.5px; color:var(--db-blue);">Rules & eligibility</summary>
+          <p class="lede" style="margin-top:8px; white-space:pre-wrap;">${esc(cfg.rules)}</p>
+        </details>` : ''}
         <div id="join-msg"></div>
 
         <form id="join-form">
@@ -614,6 +620,11 @@
         <input type="text" id="s-handle" value="${esc(cfg.partnerHandle)}" />
         <label>Prize description</label>
         <input type="text" id="s-prize" value="${esc(cfg.prize)}" />
+        <label>Campaign description <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
+        <textarea id="s-description" rows="3" placeholder="A sentence or two about the campaign — shown to entrants above the tasks.">${esc(cfg.description || '')}</textarea>
+        <label>Rules / eligibility <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
+        <textarea id="s-rules" rows="5" placeholder="e.g. Open to AU residents 18+. One entry per person. Winner announced within 7 days of close. Winner selected at random from eligible entries.">${esc(cfg.rules || '')}</textarea>
+        <div class="hint">Shown to entrants in a collapsible "Rules & eligibility" section on the Join page. Leave blank to hide it entirely.</div>
         <label>Promo banner image <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
           <label class="btn secondary" style="cursor:pointer; padding:9px 14px; font-size:13px; white-space:nowrap;">
@@ -706,6 +717,8 @@
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        description: document.getElementById('s-description').value.trim(),
+        rules: document.getElementById('s-rules').value.trim(),
         bannerImageUrl: document.getElementById('s-banner').value.trim(),
         requireHandle: document.getElementById('s-req-handle').checked,
         requireFacebook: document.getElementById('s-req-facebook').checked,
@@ -817,6 +830,8 @@
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        description: document.getElementById('s-description').value.trim(),
+        rules: document.getElementById('s-rules').value.trim(),
         bannerImageUrl: document.getElementById('s-banner').value.trim(),
         requireHandle: document.getElementById('s-req-handle').checked,
         requireFacebook: document.getElementById('s-req-facebook').checked,
