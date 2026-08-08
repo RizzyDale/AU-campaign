@@ -176,6 +176,10 @@
     partnerHandle: "@cepv_ebikes",
     prize: "A Regal ebike, courtesy of CEPV",
     campaignName: "Win a CEPV Ebike",
+    requireHandle: true,
+    requireFacebook: false,
+    requireEmail: true,
+    requireDecathlonAccount: true,
     tasks: [
       { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw." },
       { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above." },
@@ -213,6 +217,35 @@
   }
   async function kvDelete(key){
     await apiCall({ action: "delete", key });
+  }
+  function fileToBase64_(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // reader.result looks like "data:image/png;base64,AAAA..." — strip the prefix
+        const commaIdx = reader.result.indexOf(',');
+        resolve(reader.result.slice(commaIdx + 1));
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  async function uploadScreenshot(file){
+    const base64 = await fileToBase64_(file);
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids CORS preflight on Apps Script
+      body: JSON.stringify({
+        action: "uploadImage",
+        filename: file.name,
+        mimeType: file.type || "image/png",
+        base64: base64
+      })
+    });
+    if (!res.ok) throw new Error("Upload failed " + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.url;
   }
 
   async function getConfig(){
@@ -297,18 +330,29 @@
           <label class="first">Your name</label>
           <input type="text" id="f-name" required />
 
+          ${cfg.requireHandle !== false ? `
           <label>Your Instagram handle</label>
           <input type="text" id="f-handle" placeholder="@yourhandle" required />
+          ` : ''}
 
+          ${cfg.requireFacebook ? `
+          <label>Your Facebook profile link</label>
+          <input type="text" id="f-facebook" placeholder="facebook.com/yourname" required />
+          ` : ''}
+
+          ${cfg.requireEmail !== false ? `
           <label>Email</label>
           <input type="email" id="f-email" required />
+          ` : ''}
 
-          <label style="margin-top:22px;">Tasks</label>
+          ${cfg.requireDecathlonAccount !== false ? `
+          <label>Your Decathlon account username or email</label>
+          <input type="text" id="f-decathlon-account" placeholder="The email/username you use for your Decathlon account" required />
+          <div class="hint">Don't have one yet? <a class="plink" href="https://www.decathlon.com.au" target="_blank" rel="noopener">Create a free Decathlon account here ↗</a>, then come back and enter it above.</div>
+          ` : ''}
+
+          <label style="margin-top:22px;">Tasks — screenshot each one</label>
           <div id="join-tasks"></div>
-
-          <label>Proof link</label>
-          <input type="url" id="f-proof" placeholder="Link to screenshot / order confirmation (Drive, Imgur, etc.)" required />
-          <div class="hint">Upload your screenshot(s) anywhere with a shareable link and paste it here.</div>
 
           <button type="submit" class="btn full" style="margin-top:20px;">Submit entry</button>
         </form>
@@ -316,16 +360,51 @@
     `;
 
     const tasksWrap = document.getElementById('join-tasks');
+    const uploadedProofs = {};
     cfg.tasks.forEach(t => {
       const row = document.createElement('div');
       row.className = 'task-row';
+      row.style.flexDirection = 'column';
+      row.style.alignItems = 'stretch';
       row.innerHTML = `
-        <input type="checkbox" required data-task="${esc(t.id)}" id="task-${esc(t.id)}"/>
-        <div>
-          <label for="task-${esc(t.id)}" class="tlabel" style="margin:0;cursor:pointer;">${esc(t.label)}</label>
-          <div class="tdesc">${esc(t.desc||"")}</div>
-        </div>`;
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+          <input type="checkbox" required data-task="${esc(t.id)}" id="task-${esc(t.id)}"/>
+          <div style="flex:1;">
+            <label for="task-${esc(t.id)}" class="tlabel" style="margin:0;cursor:pointer;">${esc(t.label)}</label>
+            <div class="tdesc">${esc(t.desc||"")}</div>
+          </div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label class="btn secondary" style="cursor:pointer; padding:9px 14px; font-size:13px;">
+            📷 Upload screenshot
+            <input type="file" accept="image/*" data-upload-for="${esc(t.id)}" style="display:none;" />
+          </label>
+          <span style="font-size:12.5px; color:#8494a0;">or</span>
+          <input type="url" data-proof-for="${esc(t.id)}" placeholder="paste a link instead" style="flex:1; min-width:160px;"/>
+        </div>
+        <div data-status-for="${esc(t.id)}" style="font-size:12.5px; margin-top:4px;"></div>`;
       tasksWrap.appendChild(row);
+    });
+
+    tasksWrap.querySelectorAll('[data-upload-for]').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        const taskId = e.target.dataset.uploadFor;
+        const statusEl = tasksWrap.querySelector(`[data-status-for="${taskId}"]`);
+        const linkInput = tasksWrap.querySelector(`[data-proof-for="${taskId}"]`);
+        const file = e.target.files[0];
+        if (!file) return;
+        statusEl.innerHTML = `<span style="color:#7a8891;">Uploading…</span>`;
+        try {
+          const url = await uploadScreenshot(file);
+          uploadedProofs[taskId] = url;
+          linkInput.value = "";
+          linkInput.disabled = true;
+          linkInput.placeholder = "using uploaded screenshot ✓";
+          statusEl.innerHTML = `<span style="color:var(--db-green);">✓ Uploaded — you're set for this one.</span>`;
+        } catch(err){
+          statusEl.innerHTML = `<span style="color:var(--db-red);">Upload failed — try again, or paste a link instead.</span>`;
+        }
+      });
     });
 
     listEntries().then(entries => {
@@ -337,29 +416,56 @@
       const msg = document.getElementById('join-msg');
       const btn = e.target.querySelector('button[type=submit]');
       btn.disabled = true; btn.textContent = "Submitting…";
+      const val_ = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
       try {
-        const handle = document.getElementById('f-handle').value.trim();
+        const handle = val_('f-handle');
         const existing = await listEntries();
-        if (existing.some(en => en.handle.toLowerCase() === handle.toLowerCase())){
+        if (handle && existing.some(en => (en.handle||'').toLowerCase() === handle.toLowerCase())){
           msg.innerHTML = `<div class="msg err">This Instagram handle has already entered this campaign.</div>`;
+          btn.disabled = false; btn.textContent = "Submit entry";
+          return;
+        }
+        const tasksProof = {};
+        let missing = [];
+        cfg.tasks.forEach(t => {
+          const linkInput = document.querySelector(`[data-proof-for="${t.id}"]`);
+          const value = uploadedProofs[t.id] || (linkInput ? linkInput.value.trim() : "");
+          if (!value) missing.push(t.label);
+          tasksProof[t.id] = value;
+        });
+        if (missing.length){
+          msg.innerHTML = `<div class="msg err">Please upload a screenshot or paste a link for: ${esc(missing.join(', '))}.</div>`;
           btn.disabled = false; btn.textContent = "Submit entry";
           return;
         }
         const entry = {
           ts: Date.now(),
-          name: document.getElementById('f-name').value.trim(),
+          name: val_('f-name'),
           handle: handle,
-          email: document.getElementById('f-email').value.trim(),
-          proof: document.getElementById('f-proof').value.trim(),
+          facebookProfile: val_('f-facebook'),
+          email: val_('f-email'),
+          decathlonAccount: val_('f-decathlon-account'),
+          tasksProof: tasksProof,
           tasksDone: cfg.tasks.map(t => t.id),
           eligible: null,
           campaignId: cfg.id,
-          campaign: cfg.campaignName
+          campaign: cfg.campaignName,
+          taskLabels: cfg.tasks.map(t => ({ id: t.id, label: t.label }))
         };
         await saveEntry(entry);
-        msg.innerHTML = `<div class="msg ok">You're entered! We'll verify your proof before the draw — good luck 🎉</div>`;
-        e.target.reset();
-        listEntries().then(entries => { document.getElementById('join-entrycount').textContent = entries.length; });
+        const confirmCode = "DK-" + String(entry.ts).slice(-6);
+        root.innerHTML = `
+          <div class="card" style="text-align:center;">
+            <div style="font-size:30px; margin-bottom:8px;">🎉</div>
+            <h2 style="margin-bottom:6px;">You're entered!</h2>
+            <p class="lede">We'll verify your proof before the draw — good luck.</p>
+            <div style="background:var(--db-paper); border:1px solid var(--db-line); border-radius:10px; padding:14px; display:inline-block;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.07em; color:#7a8891;">Your confirmation code</div>
+              <div style="font-size:20px; font-weight:800; color:var(--db-navy); letter-spacing:0.03em;">${confirmCode}</div>
+            </div>
+            <div class="hint" style="margin-top:10px;">Keep this if you want to follow up about your entry.</div>
+          </div>`;
+        return;
       } catch(err){
         msg.innerHTML = `<div class="msg err">Something went wrong submitting your entry. Please try again.</div>`;
       }
@@ -421,6 +527,15 @@
       </div>
 
       <div class="card">
+        <h2>Quick handle check</h2>
+        <p class="lede">Paste any Instagram handle to jump straight to their profile — a faster way to eyeball follows while you're reviewing entries. This doesn't verify anything automatically; it just skips the typing/searching.</p>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="quick-handle" placeholder="@handle" style="flex:1;" />
+          <button class="btn secondary" id="quick-open" type="button" style="white-space:nowrap;">Open profile ↗</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Campaign setup</h2>
         <p class="lede">Editing these fields and saving updates the <b>live</b> campaign entrants see right now. To move on to a different partner without losing this campaign's entry history, use "Start new campaign" instead.</p>
         <div id="setup-msg"></div>
@@ -430,6 +545,34 @@
             <div class="tdesc">Entrants can only submit while this is on.</div>
           </div>
           <label class="switch"><input type="checkbox" id="s-active" ${cfg.active ? 'checked' : ''}/><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:700;font-size:14px;">Require Instagram handle</div>
+            <div class="tdesc">Turn off for campaigns that don't need it.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="s-req-handle" ${cfg.requireHandle !== false ? 'checked' : ''}/><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:700;font-size:14px;">Require Facebook profile</div>
+            <div class="tdesc">Turn on for campaigns that need Facebook instead of/alongside Instagram.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="s-req-facebook" ${cfg.requireFacebook ? 'checked' : ''}/><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:700;font-size:14px;">Require email</div>
+            <div class="tdesc">Turn off for campaigns that don't need it.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="s-req-email" ${cfg.requireEmail !== false ? 'checked' : ''}/><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:700;font-size:14px;">Require Decathlon account</div>
+            <div class="tdesc">Turn off for campaigns that don't need it.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="s-req-decathlon" ${cfg.requireDecathlonAccount !== false ? 'checked' : ''}/><span class="slider"></span></label>
         </div>
         <label class="first">Campaign name</label>
         <input type="text" id="s-name" value="${esc(cfg.campaignName)}" />
@@ -487,24 +630,29 @@
       renderAdmin();
     });
 
-    document.getElementById('export-csv').addEventListener('click', () => {
-      const rows = [["Name","Instagram","Email","Tasks checked","Proof link","Status","Submitted"]];
-      scopedEntries.forEach(en => {
-        rows.push([
-          en.name, en.handle, en.email,
-          `${(en.tasksDone||[]).length}/${totalTasks}`,
-          en.proof,
-          en.eligible === true ? "Eligible" : en.eligible === false ? "Rejected" : "Pending",
-          new Date(en.ts).toLocaleString()
-        ]);
-      });
+    function downloadCsv_(rows, filename){
       const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = (campaignMap.get(selectedCampaign) || 'campaign') + '-entries.csv';
+      a.href = url; a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('export-csv').addEventListener('click', () => {
+      const rows = [["Name","Instagram","Facebook","Email","Decathlon account","Tasks checked","Proof links","Status","Submitted"]];
+      scopedEntries.forEach(en => {
+        const proofSummary = Object.entries(en.tasksProof || {}).map(([k,v]) => v).filter(Boolean).join(' | ');
+        rows.push([
+          en.name, en.handle, en.facebookProfile || '', en.email, en.decathlonAccount || '',
+          `${(en.tasksDone||[]).length}/${totalTasks}`,
+          proofSummary,
+          en.eligible === true ? "Eligible" : en.eligible === false ? "Rejected" : "Pending",
+          new Date(en.ts).toLocaleString()
+        ]);
+      });
+      downloadCsv_(rows, (campaignMap.get(selectedCampaign) || 'campaign') + '-entries.csv');
     });
 
     document.getElementById('s-newcampaign').addEventListener('click', async () => {
@@ -516,11 +664,23 @@
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        requireHandle: document.getElementById('s-req-handle').checked,
+        requireFacebook: document.getElementById('s-req-facebook').checked,
+        requireEmail: document.getElementById('s-req-email').checked,
+        requireDecathlonAccount: document.getElementById('s-req-decathlon').checked,
         tasks: taskState
       };
       await saveConfig(newCfg);
       window.__chubSelectedCampaign = newCfg.id;
       renderAdmin();
+    });
+
+    document.getElementById('quick-open').addEventListener('click', () => {
+      const raw = document.getElementById('quick-handle').value.trim().replace(/^@/, '');
+      if (raw) window.open('https://instagram.com/' + encodeURIComponent(raw), '_blank', 'noopener');
+    });
+    document.getElementById('quick-handle').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('quick-open').click();
     });
 
     // task editor rows
@@ -563,11 +723,16 @@
 
     document.getElementById('s-save').addEventListener('click', async () => {
       const newCfg = {
+        id: cfg.id,
         active: document.getElementById('s-active').checked,
         campaignName: document.getElementById('s-name').value.trim(),
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        requireHandle: document.getElementById('s-req-handle').checked,
+        requireFacebook: document.getElementById('s-req-facebook').checked,
+        requireEmail: document.getElementById('s-req-email').checked,
+        requireDecathlonAccount: document.getElementById('s-req-decathlon').checked,
         tasks: taskState
       };
       try {
@@ -588,14 +753,30 @@
           : en.eligible === false
           ? `<span class="pill no">Rejected</span>`
           : `<span class="pill eligible">Pending review</span>`;
+        const taskLabels = en.taskLabels || cfg.tasks.map(t => ({ id: t.id, label: t.label }));
+        const proofLinks = taskLabels.map(t => {
+          const url = (en.tasksProof || {})[t.id];
+          const short = t.label.length > 22 ? t.label.slice(0,22) + "…" : t.label;
+          return url
+            ? `<div><a class="plink" href="${esc(url)}" target="_blank" rel="noopener">${esc(short)} ↗</a></div>`
+            : `<div style="color:#b0b8bd;">${esc(short)} — no link</div>`;
+        }).join('');
+        const igHandle = (en.handle || '').replace(/^@/, '');
+        const fbRaw = (en.facebookProfile || '').trim();
+        const fbUrl = fbRaw ? (fbRaw.startsWith('http') ? fbRaw : 'https://facebook.com/' + fbRaw.replace(/^\//, '')) : '';
         tr.innerHTML = `
           <td>
             <div style="font-weight:700;">${esc(en.name)}</div>
             <div style="color:#7a8891;">${esc(en.handle)}</div>
-            <div style="color:#7a8891;font-size:12px;">${esc(en.email)}</div>
+            <div style="color:#7a8891;font-size:12px;">
+              <a class="plink" style="color:inherit;" href="mailto:${esc(en.email)}">${esc(en.email)}</a>
+            </div>
+            ${en.decathlonAccount ? `<div style="color:#7a8891;font-size:12px;">Decathlon: ${esc(en.decathlonAccount)}</div>` : ''}
+            ${igHandle ? `<a class="plink" style="font-size:12px;" href="https://instagram.com/${esc(igHandle)}" target="_blank" rel="noopener">Open their IG profile ↗</a>` : ''}
+            ${fbUrl ? `<div><a class="plink" style="font-size:12px;" href="${esc(fbUrl)}" target="_blank" rel="noopener">Open their Facebook ↗</a></div>` : ''}
           </td>
           <td>${(en.tasksDone||[]).length}/${totalTasks} checked</td>
-          <td><a class="plink" href="${esc(en.proof)}" target="_blank" rel="noopener">View proof ↗</a></td>
+          <td style="font-size:12.5px;">${proofLinks}</td>
           <td>${statusPill}</td>
           <td>
             <div class="row-actions">
