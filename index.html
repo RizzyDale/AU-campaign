@@ -60,6 +60,14 @@
   #chub .prize-banner .pcount .n { font-size: 28px; font-weight: 800; line-height: 1; }
   #chub .prize-banner .pcount .l { font-size: 11px; color: #8fc7ea; text-transform: uppercase; letter-spacing: 0.07em; }
 
+  #chub .promo-banner {
+    width: 100%; aspect-ratio: 4 / 1; border-radius: 14px; margin-bottom: 18px; display: block;
+    object-fit: cover; border: 1px solid var(--db-line); background: var(--db-paper);
+  }
+  @media (max-width: 480px) {
+    #chub .promo-banner { aspect-ratio: 16 / 9; }
+  }
+
   #chub label { display: block; font-size: 13px; font-weight: 600; color: var(--db-navy); margin: 14px 0 6px; }
   #chub label.first { margin-top: 0; }
   #chub input[type=text], #chub input[type=email], #chub input[type=url], #chub textarea {
@@ -180,6 +188,7 @@
     requireFacebook: false,
     requireEmail: true,
     requireDecathlonAccount: true,
+    bannerImageUrl: "",
     tasks: [
       { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw." },
       { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above." },
@@ -308,6 +317,7 @@
     }
 
     root.innerHTML = `
+      ${cfg.bannerImageUrl ? `<img class="promo-banner" src="${esc(cfg.bannerImageUrl)}" alt="${esc(cfg.partnerName)} promo banner" />` : ''}
       <div class="prize-banner">
         <div>
           <div class="plabel">Current prize</div>
@@ -582,6 +592,16 @@
         <input type="text" id="s-handle" value="${esc(cfg.partnerHandle)}" />
         <label>Prize description</label>
         <input type="text" id="s-prize" value="${esc(cfg.prize)}" />
+        <label>Promo banner image <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+          <label class="btn secondary" style="cursor:pointer; padding:9px 14px; font-size:13px; white-space:nowrap;">
+            📷 Upload image
+            <input type="file" accept="image/*" id="s-banner-upload" style="display:none;" />
+          </label>
+          <span id="s-banner-status" style="font-size:12.5px; color:#7a8891;"></span>
+        </div>
+        <input type="url" id="s-banner" value="${esc(cfg.bannerImageUrl || '')}" placeholder="…or paste an image link (Drive, Imgur, their own site, etc.)" />
+        <div class="hint">Shows as a wide banner at the top of the Join page, cropped to a fixed 4:1 shape (1:1 wider on tiny phone screens). Recommended size: <b>1600×400px</b> — anything you give a partner to submit should roughly match that ratio so nothing important gets cropped off the sides. Leave blank for no banner.</div>
         <label>Tasks</label>
         <div id="s-tasks"></div>
         <button class="btn secondary" id="s-addtask" type="button" style="margin-top:6px;">+ Add task</button>
@@ -664,6 +684,7 @@
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        bannerImageUrl: document.getElementById('s-banner').value.trim(),
         requireHandle: document.getElementById('s-req-handle').checked,
         requireFacebook: document.getElementById('s-req-facebook').checked,
         requireEmail: document.getElementById('s-req-email').checked,
@@ -721,6 +742,23 @@
       renderTaskRows();
     });
 
+    document.getElementById('s-banner-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      const statusEl = document.getElementById('s-banner-status');
+      if (!file) return;
+      statusEl.textContent = "Uploading…";
+      statusEl.style.color = "#7a8891";
+      try {
+        const url = await uploadScreenshot(file);
+        document.getElementById('s-banner').value = url;
+        statusEl.textContent = "✓ Uploaded — click 'Save changes to this campaign' to make it live.";
+        statusEl.style.color = "var(--db-green)";
+      } catch(err){
+        statusEl.textContent = "Upload failed — try again, or paste a link instead.";
+        statusEl.style.color = "var(--db-red)";
+      }
+    });
+
     document.getElementById('s-save').addEventListener('click', async () => {
       const newCfg = {
         id: cfg.id,
@@ -729,6 +767,7 @@
         partnerName: document.getElementById('s-partner').value.trim(),
         partnerHandle: document.getElementById('s-handle').value.trim(),
         prize: document.getElementById('s-prize').value.trim(),
+        bannerImageUrl: document.getElementById('s-banner').value.trim(),
         requireHandle: document.getElementById('s-req-handle').checked,
         requireFacebook: document.getElementById('s-req-facebook').checked,
         requireEmail: document.getElementById('s-req-email').checked,
