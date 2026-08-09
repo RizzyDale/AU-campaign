@@ -806,7 +806,9 @@
       <div class="card">
         <h2>Leaderboard</h2>
         <p class="lede">Ranked by points earned from verified tasks only — self-declared but unverified tasks don't count yet.</p>
-        <div id="leaderboard-area"></div>
+        <label class="first" style="margin-top:0;">Show top</label>
+        <input type="number" id="leaderboard-size" min="1" max="100" value="${cfg.leaderboardSize || 10}" style="max-width:120px;" />
+        <div id="leaderboard-area" style="margin-top:14px;"></div>
       </div>` : ''}
 
       <div class="card">
@@ -919,19 +921,55 @@
       renderAdmin();
     });
 
-    if (usesPoints){
-      const board = [...scopedEntries]
-        .map(en => ({ en, score: scoreForEntry_(en, cfg) }))
-        .sort((a,b) => b.score - a.score)
-        .slice(0, 10);
+    function renderLeaderboard(){
+      const sizeInput = document.getElementById('leaderboard-size');
+      const size = Math.min(100, Math.max(1, parseInt(sizeInput.value, 10) || 10));
       const boardEl = document.getElementById('leaderboard-area');
-      if (!board.length || board.every(b => b.score === 0)){
+      const allScored = [...scopedEntries]
+        .map(en => ({ en, score: scoreForEntry_(en, cfg) }))
+        .sort((a, b) => b.score - a.score);
+
+      if (!allScored.length || allScored.every(b => b.score === 0)){
         boardEl.innerHTML = `<div class="empty" style="padding:20px;"><div class="ic">🏆</div>No points earned yet — verify some tasks below.</div>`;
-      } else {
-        boardEl.innerHTML = `<table><thead><tr><th>#</th><th>Entrant</th><th>Score</th></tr></thead><tbody>${
-          board.map((b,i) => `<tr><td>${i+1}</td><td>${esc(b.en.name)} — ${esc(b.en.handle||'')}</td><td style="font-weight:700;">${b.score} pts</td></tr>`).join('')
-        }</tbody></table>`;
+        return;
       }
+
+      const topN = allScored.slice(0, size);
+      const cutoffScore = topN[topN.length - 1].score;
+      const totalAtCutoff = allScored.filter(b => b.score === cutoffScore).length;
+      const slotsAtCutoff = topN.filter(b => b.score === cutoffScore).length;
+      const hasTie = totalAtCutoff > slotsAtCutoff && topN.length === size;
+
+      boardEl.innerHTML = `
+        <table><thead><tr><th>#</th><th>Entrant</th><th>Score</th></tr></thead><tbody>${
+          topN.map((b, i) => `<tr${b.score === cutoffScore && hasTie ? ' style="background:#fff4e2;"' : ''}><td>${i+1}</td><td>${esc(b.en.name)} — ${esc(b.en.handle||'')}${b.score === cutoffScore && hasTie ? ' <span class="pill eligible">Tied</span>' : ''}</td><td style="font-weight:700;">${b.score} pts</td></tr>`).join('')
+        }</tbody></table>
+        ${hasTie ? `
+        <div class="msg info" style="margin-top:14px;">
+          ${totalAtCutoff} people are tied at ${cutoffScore} pts for the last ${slotsAtCutoff} spot${slotsAtCutoff === 1 ? '' : 's'} in the top ${size}. Draw to decide who fills ${slotsAtCutoff === 1 ? 'it' : 'them'}.
+        </div>
+        <button class="btn gold full" id="tiebreak-btn" type="button">🎲 Draw tiebreaker</button>
+        <div id="tiebreak-area" style="margin-top:12px;"></div>
+        ` : ''}
+      `;
+
+      if (hasTie){
+        document.getElementById('tiebreak-btn').addEventListener('click', (e) => {
+          const tiedPool = allScored.filter(b => b.score === cutoffScore).map(b => b.en);
+          const area = document.getElementById('tiebreak-area');
+          e.target.disabled = true;
+          const winners = shuffle_(tiedPool).slice(0, slotsAtCutoff);
+          area.innerHTML = `
+            <div class="winner-box" style="margin-top:0;">
+              <div class="wlabel">🎲 Tiebreaker result</div>
+              ${winners.map(w => `<div style="margin-top:8px;"><div class="wname" style="font-size:20px;">${esc(w.name)}</div><div class="whandle">${esc(w.handle||'')}</div></div>`).join('')}
+            </div>`;
+        });
+      }
+    }
+    if (usesPoints){
+      renderLeaderboard();
+      document.getElementById('leaderboard-size').addEventListener('input', renderLeaderboard);
     }
 
     // task editor rows
@@ -1006,6 +1044,7 @@
         requireFacebook: document.getElementById('s-req-facebook').checked,
         requireEmail: document.getElementById('s-req-email').checked,
         requireDecathlonAccount: document.getElementById('s-req-decathlon').checked,
+        leaderboardSize: (() => { const el = document.getElementById('leaderboard-size'); return el ? Math.min(100, Math.max(1, parseInt(el.value,10)||10)) : (cfg.leaderboardSize || 10); })(),
         tasks: taskState
       };
       try {
