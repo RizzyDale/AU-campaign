@@ -172,31 +172,34 @@
 (function(){
   const root = document.getElementById('chub-body');
   const ADMIN_CODE = "Dale07";
-  const CONFIG_KEY = "campaign-config";
+  const CAMPAIGN_PREFIX = "campaign:";
   let view = (window.location.hash === "#admin") ? "admin" : "join";
   let unlocked = false;
-  let entriesCache = [];
+  // Which campaign Admin is currently managing (null = show the campaign list)
+  let adminCampaignId = null;
 
-  const defaultConfig = {
-    id: "cepv-" + Date.now(),
+  const blankCampaignTemplate = {
     active: true,
-    partnerName: "CEPV",
-    partnerHandle: "@cepv_ebikes",
-    prize: "A Regal ebike, courtesy of CEPV",
-    campaignName: "Win a CEPV Ebike",
+    partnerName: "",
+    partnerHandle: "",
+    prize: "",
+    campaignName: "New campaign",
+    description: "",
+    rules: "",
+    bannerImageUrl: "",
     requireHandle: true,
     requireFacebook: false,
     requireEmail: true,
     requireDecathlonAccount: true,
-    bannerImageUrl: "",
     tasks: [
-      { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw." },
-      { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above." },
-      { id: "t3", label: "Purchase a qualifying item + keep proof", desc: "Paste a link to your order confirmation or a screenshot upload (e.g. Drive/Imgur link)." }
+      { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw.", points: "" },
+      { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above.", points: "" },
+      { id: "t3", label: "Purchase a qualifying item + keep proof", desc: "Paste a link to your order confirmation or a screenshot upload (e.g. Drive/Imgur link).", points: "" }
     ]
   };
 
   function esc(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function slugify_(s){ return (s||"campaign").toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || "campaign"; }
   // Google Drive share/view links (drive.google.com/file/d/ID/view...) don't work
   // directly as an <img src> — this rewrites any Drive link into one that does,
   // so both old uploads and manually-pasted Drive links display correctly.
@@ -207,6 +210,12 @@
     const m2 = url.match(/[?&]id=([^&]+)/);
     if (m2 && url.includes('drive.google.com')) return "https://drive.google.com/thumbnail?id=" + m2[1] + "&sz=w2000";
     return url;
+  }
+  function campaignLink_(id){
+    return window.location.origin + window.location.pathname + "?c=" + encodeURIComponent(id);
+  }
+  function getUrlCampaignId_(){
+    return new URLSearchParams(window.location.search).get('c');
   }
   function render(){ view==="join" ? renderJoin() : renderAdmin(); }
   window.addEventListener('hashchange', () => {
@@ -242,7 +251,6 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        // reader.result looks like "data:image/png;base64,AAAA..." — strip the prefix
         const commaIdx = reader.result.indexOf(',');
         resolve(reader.result.slice(commaIdx + 1));
       };
@@ -268,15 +276,37 @@
     return data.url;
   }
 
-  async function getConfig(){
+  // ---------- MULTI-CAMPAIGN CONFIG STORAGE ----------
+  async function getCampaign(id){
     try {
-      const r = await kvGet(CONFIG_KEY);
-      return r ? JSON.parse(r.value) : defaultConfig;
-    } catch(e){ return defaultConfig; }
+      const r = await kvGet(CAMPAIGN_PREFIX + id);
+      return r ? JSON.parse(r.value) : null;
+    } catch(e){ return null; }
   }
-  async function saveConfig(cfg){
-    await kvSet(CONFIG_KEY, JSON.stringify(cfg));
+  async function saveCampaign(cfg){
+    await kvSet(CAMPAIGN_PREFIX + cfg.id, JSON.stringify(cfg));
   }
+  async function listCampaigns(){
+    try {
+      const keys = await kvList(CAMPAIGN_PREFIX);
+      const out = [];
+      for (const k of keys){
+        try {
+          const v = await kvGet(k);
+          if (v) out.push(JSON.parse(v.value));
+        } catch(e){}
+      }
+      return out;
+    } catch(e){ return []; }
+  }
+  async function createCampaign(fromTemplate){
+    const name = fromTemplate.campaignName || "New campaign";
+    const id = slugify_(name) + "-" + Date.now();
+    const cfg = { ...fromTemplate, id };
+    await saveCampaign(cfg);
+    return cfg;
+  }
+
   async function listEntries(){
     try {
       const keys = await kvList("entry:");
@@ -309,19 +339,77 @@
       }
     }
   }
+  function scoreForEntry_(entry, cfg){
+    const verified = entry.taskVerified || {};
+    return cfg.tasks.reduce((sum, t) => sum + (verified[t.id] ? (Number(t.points) || 0) : 0), 0);
+  }
+  function campaignHasPoints_(cfg){
+    return cfg.tasks.some(t => Number(t.points) > 0);
+  }
 
   // ---------- JOIN VIEW ----------
   async function renderJoin(){
-    root.innerHTML = `<div class="card"><div class="empty"><div class="ic">⏳</div>Loading campaign…</div></div>`;
-    const cfg = await getConfig();
+    root.innerHTML = `<div class="card"><div class="empty"><div class="ic">⏳</div>Loading…</div></div>`;
+    const id = getUrlCampaignId_();
 
+    if (!id){
+      // No specific campaign in the link — show a picker of active campaigns
+      const all = await listCampaigns();
+      const active = all.filter(c => c.active);
+      if (!active.length){
+        root.innerHTML = `
+          <div class="card">
+            <div class="empty">
+              <div class="ic">💤</div>
+              <div style="font-weight:700;color:var(--db-navy);margin-bottom:4px;">No campaigns running right now</div>
+              <div style="font-size:13.5px;">Check back soon.</div>
+            </div>
+          </div>`;
+        return;
+      }
+      root.innerHTML = `
+        <div class="card">
+          <div class="eyebrow">Decathlon Marketplace AU</div>
+          <h1>Current campaigns</h1>
+          <p class="lede">Pick one to enter.</p>
+          <div id="campaign-picker"></div>
+        </div>`;
+      const wrap = document.getElementById('campaign-picker');
+      active.forEach(c => {
+        const a = document.createElement('a');
+        a.href = campaignLink_(c.id);
+        a.style.cssText = "display:block;text-decoration:none;";
+        a.innerHTML = `
+          <div class="task-row" style="cursor:pointer;">
+            <div style="flex:1;">
+              <div class="tlabel">${esc(c.campaignName)}</div>
+              <div class="tdesc">${esc(c.prize || '')}</div>
+            </div>
+          </div>`;
+        wrap.appendChild(a);
+      });
+      return;
+    }
+
+    const cfg = await getCampaign(id);
+    if (!cfg){
+      root.innerHTML = `
+        <div class="card">
+          <div class="empty">
+            <div class="ic">🔍</div>
+            <div style="font-weight:700;color:var(--db-navy);margin-bottom:4px;">Campaign not found</div>
+            <div style="font-size:13.5px;"><a class="plink" href="${esc(window.location.origin + window.location.pathname)}">See current campaigns</a></div>
+          </div>
+        </div>`;
+      return;
+    }
     if (!cfg.active){
       root.innerHTML = `
         <div class="card">
           <div class="empty">
             <div class="ic">💤</div>
-            <div style="font-weight:700;color:var(--db-navy);margin-bottom:4px;">No campaign running right now</div>
-            <div style="font-size:13.5px;">Check back soon, or ask the Marketplace team what's next.</div>
+            <div style="font-weight:700;color:var(--db-navy);margin-bottom:4px;">This campaign has closed</div>
+            <div style="font-size:13.5px;"><a class="plink" href="${esc(window.location.origin + window.location.pathname)}">See current campaigns</a></div>
           </div>
         </div>`;
       return;
@@ -397,7 +485,7 @@
         <div style="display:flex; gap:10px; align-items:flex-start;">
           <input type="checkbox" required data-task="${esc(t.id)}" id="task-${esc(t.id)}"/>
           <div style="flex:1;">
-            <label for="task-${esc(t.id)}" class="tlabel" style="margin:0;cursor:pointer;">${esc(t.label)}</label>
+            <label for="task-${esc(t.id)}" class="tlabel" style="margin:0;cursor:pointer;">${esc(t.label)}${Number(t.points) > 0 ? ` <span style="color:var(--db-blue);font-weight:700;">· ${Number(t.points)} pts</span>` : ''}</label>
             <div class="tdesc">${esc(t.desc||"")}</div>
           </div>
         </div>
@@ -435,7 +523,8 @@
     });
 
     listEntries().then(entries => {
-      document.getElementById('join-entrycount').textContent = entries.length;
+      const count = entries.filter(en => en.campaignId === cfg.id).length;
+      document.getElementById('join-entrycount').textContent = count;
     });
 
     document.getElementById('join-form').addEventListener('submit', async (e) => {
@@ -443,11 +532,11 @@
       const msg = document.getElementById('join-msg');
       const btn = e.target.querySelector('button[type=submit]');
       btn.disabled = true; btn.textContent = "Submitting…";
-      const val_ = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+      const val_ = (elId) => { const el = document.getElementById(elId); return el ? el.value.trim() : ""; };
       try {
         const handle = val_('f-handle');
         const existing = await listEntries();
-        if (handle && existing.some(en => (en.handle||'').toLowerCase() === handle.toLowerCase())){
+        if (handle && existing.some(en => en.campaignId === cfg.id && (en.handle||'').toLowerCase() === handle.toLowerCase())){
           msg.innerHTML = `<div class="msg err">This Instagram handle has already entered this campaign.</div>`;
           btn.disabled = false; btn.textContent = "Submit entry";
           return;
@@ -476,10 +565,11 @@
           decathlonAccount: val_('f-decathlon-account'),
           tasksProof: tasksProof,
           tasksDone: cfg.tasks.map(t => t.id),
+          taskVerified: {},
           eligible: null,
           campaignId: cfg.id,
           campaign: cfg.campaignName,
-          taskLabels: cfg.tasks.map(t => ({ id: t.id, label: t.label }))
+          taskLabels: cfg.tasks.map(t => ({ id: t.id, label: t.label, points: t.points || "" }))
         };
         await saveEntry(entry);
         root.innerHTML = `
@@ -507,7 +597,7 @@
       <div class="lockscreen">
         <div class="ic">🔒</div>
         <h2>Admin access</h2>
-        <p class="lede">Enter the campaign admin code to manage entries and run the draw.</p>
+        <p class="lede">Enter the campaign admin code to manage campaigns.</p>
         <div id="lock-msg"></div>
         <input type="text" id="lock-code" placeholder="Admin code" style="text-align:center;margin-bottom:12px;" />
         <button class="btn full" id="lock-submit">Unlock</button>
@@ -524,39 +614,25 @@
 
   async function renderAdmin(){
     if (!unlocked){ renderLock(); return; }
-    root.innerHTML = `<div class="card"><div class="empty"><div class="ic">⏳</div>Loading dashboard…</div></div>`;
-    const cfg = await getConfig();
+    if (!adminCampaignId){ renderCampaignList(); return; }
+    renderCampaignManage(adminCampaignId);
+  }
+
+  // ---------- ADMIN: campaign list (top level) ----------
+  async function renderCampaignList(){
+    root.innerHTML = `<div class="card"><div class="empty"><div class="ic">⏳</div>Loading campaigns…</div></div>`;
+    const campaigns = await listCampaigns();
     const entries = await listEntries();
-    entriesCache = entries;
-
-    // distinct campaigns seen in entries (for the history filter), current campaign always included
-    const campaignMap = new Map();
-    campaignMap.set(cfg.id, cfg.campaignName + " (current)");
-    entries.forEach(en => {
-      const cid = en.campaignId || en.campaign || "unknown";
-      if (!campaignMap.has(cid)) campaignMap.set(cid, en.campaign || "Untitled campaign");
-    });
-    const selectedCampaign = window.__chubSelectedCampaign || cfg.id;
-    const scopedEntries = entries.filter(en => (en.campaignId || en.campaign || "unknown") === selectedCampaign);
-
-    const totalTasks = cfg.tasks.length;
-    const eligibleCount = scopedEntries.filter(e => e.eligible === true).length;
-    const pendingCount = scopedEntries.filter(e => e.eligible === null || e.eligible === undefined).length;
 
     root.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--db-blue);">Admin view (not visible to entrants)</div>
-        <a href="#" onclick="window.location.hash=''; window.location.reload(); return false;" style="font-size:12.5px; color:#7a8891; text-decoration:none;">← Back to public page</a>
-      </div>
-      <div class="stat-row">
-        <div class="stat"><div class="n">${scopedEntries.length}</div><div class="l">Entries (this campaign)</div></div>
-        <div class="stat"><div class="n">${pendingCount}</div><div class="l">Awaiting review</div></div>
-        <div class="stat"><div class="n">${eligibleCount}</div><div class="l">Confirmed eligible</div></div>
+        <a href="#" id="back-to-public" style="font-size:12.5px; color:#7a8891; text-decoration:none;">← Back to public page</a>
       </div>
 
       <div class="card">
         <h2>Find entry by confirmation code</h2>
-        <p class="lede">Entrant emails you a code like DK-698452? Look it up here — searches across all campaigns, not just the one selected below.</p>
+        <p class="lede">Entrant emails you a code like DK-698452? Look it up here — searches across every campaign.</p>
         <div style="display:flex; gap:10px;">
           <input type="text" id="code-lookup" placeholder="DK-698452 or just 698452" style="flex:1;" />
           <button class="btn secondary" id="code-search" type="button" style="white-space:nowrap;">Find</button>
@@ -566,7 +642,7 @@
 
       <div class="card">
         <h2>Quick handle check</h2>
-        <p class="lede">Paste any Instagram handle to jump straight to their profile — a faster way to eyeball follows while you're reviewing entries. This doesn't verify anything automatically; it just skips the typing/searching.</p>
+        <p class="lede">Paste any Instagram handle to jump straight to their profile.</p>
         <div style="display:flex; gap:10px;">
           <input type="text" id="quick-handle" placeholder="@handle" style="flex:1;" />
           <button class="btn secondary" id="quick-open" type="button" style="white-space:nowrap;">Open profile ↗</button>
@@ -574,8 +650,139 @@
       </div>
 
       <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h2 style="margin:0;">Your campaigns</h2>
+          <button class="btn" id="new-campaign-btn" type="button">+ New campaign</button>
+        </div>
+        <p class="lede">Each campaign has its own link and its own entries. Click one to manage it.</p>
+        <div id="campaign-list"></div>
+      </div>
+    `;
+
+    document.getElementById('back-to-public').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.hash = '';
+      window.location.search = '';
+    });
+
+    const listEl = document.getElementById('campaign-list');
+    if (!campaigns.length){
+      listEl.innerHTML = `<div class="empty"><div class="ic">📭</div>No campaigns yet — click '+ New campaign' to create your first one.</div>`;
+    } else {
+      campaigns.forEach(c => {
+        const count = entries.filter(en => en.campaignId === c.id).length;
+        const row = document.createElement('div');
+        row.className = 'task-row';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+          <div style="flex:1;">
+            <div class="tlabel">${esc(c.campaignName)} ${c.active ? '<span class="pill confirmed">Live</span>' : '<span class="pill no">Closed</span>'}</div>
+            <div class="tdesc">${esc(c.prize || 'No prize set')} · ${count} ${count === 1 ? 'entry' : 'entries'}</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn secondary" type="button" data-copy="${esc(campaignLink_(c.id))}" style="font-size:12.5px;padding:8px 12px;">Copy link</button>
+            <button class="btn" type="button" data-manage="${esc(c.id)}" style="font-size:12.5px;padding:8px 12px;">Manage</button>
+          </div>`;
+        listEl.appendChild(row);
+      });
+      listEl.querySelectorAll('[data-manage]').forEach(b => b.addEventListener('click', (e) => {
+        adminCampaignId = e.target.dataset.manage;
+        renderAdmin();
+      }));
+      listEl.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async (e) => {
+        try {
+          await navigator.clipboard.writeText(e.target.dataset.copy);
+          const old = e.target.textContent;
+          e.target.textContent = "Copied!";
+          setTimeout(() => { e.target.textContent = old; }, 1500);
+        } catch(err){ prompt("Copy this link:", e.target.dataset.copy); }
+      }));
+    }
+
+    document.getElementById('new-campaign-btn').addEventListener('click', async () => {
+      const cfg = await createCampaign(blankCampaignTemplate);
+      adminCampaignId = cfg.id;
+      renderAdmin();
+    });
+
+    wireGlobalAdminTools_();
+  }
+
+  function wireGlobalAdminTools_(){
+    document.getElementById('quick-open').addEventListener('click', () => {
+      const raw = document.getElementById('quick-handle').value.trim().replace(/^@/, '');
+      if (raw) window.open('https://instagram.com/' + encodeURIComponent(raw), '_blank', 'noopener');
+    });
+    document.getElementById('quick-handle').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('quick-open').click();
+    });
+    async function runCodeSearch(){
+      const resultEl = document.getElementById('code-result');
+      const raw = document.getElementById('code-lookup').value.trim().toUpperCase().replace(/^DK-?/, '');
+      if (!raw){ resultEl.innerHTML = ''; return; }
+      resultEl.innerHTML = `<div style="color:#7a8891;font-size:13px;">Searching…</div>`;
+      const allEntries = await listEntries();
+      const match = allEntries.find(en => {
+        const stored = (en.confirmCode || '').replace(/^DK-?/, '');
+        return stored === raw || String(en.ts).slice(-6) === raw;
+      });
+      if (!match){
+        resultEl.innerHTML = `<div class="msg err" style="margin:0;">No entry found with that code.</div>`;
+        return;
+      }
+      const statusLabel = match.eligible === true ? "Eligible" : match.eligible === false ? "Rejected" : "Pending review";
+      resultEl.innerHTML = `
+        <div class="task-row" style="flex-direction:column;align-items:stretch;">
+          <div style="font-weight:700;">${esc(match.name)} — ${esc(match.handle || 'no handle')}</div>
+          <div style="color:#7a8891;font-size:13px;">${esc(match.email || '')}</div>
+          <div style="color:#7a8891;font-size:13px;">Campaign: ${esc(match.campaign || '')}</div>
+          <div style="margin-top:6px;"><span class="pill ${match.eligible===true?'confirmed':match.eligible===false?'no':'eligible'}">${esc(statusLabel)}</span></div>
+        </div>`;
+    }
+    document.getElementById('code-search').addEventListener('click', runCodeSearch);
+    document.getElementById('code-lookup').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runCodeSearch();
+    });
+  }
+
+  // ---------- ADMIN: manage one campaign ----------
+  async function renderCampaignManage(id){
+    root.innerHTML = `<div class="card"><div class="empty"><div class="ic">⏳</div>Loading campaign…</div></div>`;
+    const cfg = await getCampaign(id);
+    if (!cfg){
+      adminCampaignId = null;
+      renderAdmin();
+      return;
+    }
+    const allEntries = await listEntries();
+    const scopedEntries = allEntries.filter(en => en.campaignId === cfg.id);
+
+    const totalTasks = cfg.tasks.length;
+    const eligibleCount = scopedEntries.filter(e => e.eligible === true).length;
+    const pendingCount = scopedEntries.filter(e => e.eligible === null || e.eligible === undefined).length;
+    const usesPoints = campaignHasPoints_(cfg);
+
+    root.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <a href="#" id="back-to-campaigns" style="font-size:12.5px; color:#7a8891; text-decoration:none;">← All campaigns</a>
+        <a href="${esc(campaignLink_(cfg.id))}" target="_blank" style="font-size:12.5px; color:var(--db-blue); text-decoration:none;">View public page ↗</a>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="n">${scopedEntries.length}</div><div class="l">Entries</div></div>
+        <div class="stat"><div class="n">${pendingCount}</div><div class="l">Awaiting review</div></div>
+        <div class="stat"><div class="n">${eligibleCount}</div><div class="l">Confirmed eligible</div></div>
+      </div>
+
+      ${usesPoints ? `
+      <div class="card">
+        <h2>Leaderboard</h2>
+        <p class="lede">Ranked by points earned from verified tasks only — self-declared but unverified tasks don't count yet.</p>
+        <div id="leaderboard-area"></div>
+      </div>` : ''}
+
+      <div class="card">
         <h2>Campaign setup</h2>
-        <p class="lede">Editing these fields and saving updates the <b>live</b> campaign entrants see right now. To move on to a different partner without losing this campaign's entry history, use "Start new campaign" instead.</p>
         <div id="setup-msg"></div>
         <div class="toggle-row">
           <div>
@@ -623,8 +830,8 @@
         <label>Campaign description <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
         <textarea id="s-description" rows="3" placeholder="A sentence or two about the campaign — shown to entrants above the tasks.">${esc(cfg.description || '')}</textarea>
         <label>Rules / eligibility <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
-        <textarea id="s-rules" rows="5" placeholder="e.g. Open to AU residents 18+. One entry per person. Winner announced within 7 days of close. Winner selected at random from eligible entries.">${esc(cfg.rules || '')}</textarea>
-        <div class="hint">Shown to entrants in a collapsible "Rules & eligibility" section on the Join page. Leave blank to hide it entirely.</div>
+        <textarea id="s-rules" rows="5" placeholder="e.g. Open to AU residents 18+. One entry per person.">${esc(cfg.rules || '')}</textarea>
+        <div class="hint">Shown to entrants in a collapsible "Rules & eligibility" section. Leave blank to hide it.</div>
         <label>Promo banner image <span style="font-weight:400;color:#8494a0;">(optional)</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
           <label class="btn secondary" style="cursor:pointer; padding:9px 14px; font-size:13px; white-space:nowrap;">
@@ -633,20 +840,17 @@
           </label>
           <span id="s-banner-status" style="font-size:12.5px; color:#7a8891;"></span>
         </div>
-        <input type="url" id="s-banner" value="${esc(cfg.bannerImageUrl || '')}" placeholder="…or paste an image link (Drive, Imgur, their own site, etc.)" />
-        <div class="hint">Shows as a wide banner at the top of the Join page, cropped to a fixed 4:1 shape (1:1 wider on tiny phone screens). Recommended size: <b>1600×400px</b> — anything you give a partner to submit should roughly match that ratio so nothing important gets cropped off the sides. Leave blank for no banner.</div>
+        <input type="url" id="s-banner" value="${esc(cfg.bannerImageUrl || '')}" placeholder="…or paste an image link" />
+        <div class="hint">Recommended size: <b>1600×400px</b> (4:1 ratio). Leave blank for no banner.</div>
         <label>Tasks</label>
         <div id="s-tasks"></div>
         <button class="btn secondary" id="s-addtask" type="button" style="margin-top:6px;">+ Add task</button>
-        <div style="display:flex; gap:10px; margin-top:18px;">
-          <button class="btn" id="s-save" style="flex:1;">Save changes to this campaign</button>
-          <button class="btn secondary" id="s-newcampaign" style="flex:1;">Start new campaign →</button>
-        </div>
+        <button class="btn full" id="s-save" style="margin-top:18px;">Save changes</button>
       </div>
 
       <div class="card" id="draw-card">
         <h2>Winner draw</h2>
-        <p class="lede">Draws only from entries marked <b>eligible</b> in the campaign selected below. Mark reviewed entries before drawing.</p>
+        <p class="lede">Draws only from entries marked <b>eligible</b> below.</p>
         <div id="draw-area"></div>
         <button class="btn gold full" id="draw-btn" ${eligibleCount === 0 ? 'disabled' : ''}>
           🎲 Draw winner from ${eligibleCount} eligible entr${eligibleCount === 1 ? 'y' : 'ies'}
@@ -656,12 +860,7 @@
       <div class="card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
           <h2 style="margin:0;">Entries</h2>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <select id="campaign-filter" style="padding:8px 10px; border:1.5px solid var(--db-line); border-radius:8px; font-size:13px; font-family:inherit;">
-              ${Array.from(campaignMap.entries()).map(([id, name]) => `<option value="${esc(id)}" ${id === selectedCampaign ? 'selected' : ''}>${esc(name)}</option>`).join('')}
-            </select>
-            <button class="btn secondary" id="export-csv">Export CSV</button>
-          </div>
+          <button class="btn secondary" id="export-csv">Export CSV</button>
         </div>
         ${scopedEntries.length === 0 ? `
           <div class="empty"><div class="ic">📭</div>No entries for this campaign yet.</div>
@@ -669,7 +868,7 @@
           <div style="overflow-x:auto;">
           <table>
             <thead><tr>
-              <th>Entrant</th><th>Tasks</th><th>Proof</th><th>Status</th><th></th>
+              <th>Entrant</th><th>Tasks</th>${usesPoints ? '<th>Score</th>' : ''}<th>Proof / Verify</th><th>Status</th><th></th>
             </tr></thead>
             <tbody id="entries-tbody"></tbody>
           </table>
@@ -678,94 +877,26 @@
       </div>
     `;
 
-    document.getElementById('campaign-filter').addEventListener('change', (e) => {
-      window.__chubSelectedCampaign = e.target.value;
+    document.getElementById('back-to-campaigns').addEventListener('click', (e) => {
+      e.preventDefault();
+      adminCampaignId = null;
       renderAdmin();
     });
 
-    function downloadCsv_(rows, filename){
-      const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    document.getElementById('export-csv').addEventListener('click', () => {
-      const rows = [["Name","Instagram","Facebook","Email","Decathlon account","Tasks checked","Proof links","Status","Submitted"]];
-      scopedEntries.forEach(en => {
-        const proofSummary = Object.entries(en.tasksProof || {}).map(([k,v]) => v).filter(Boolean).join(' | ');
-        rows.push([
-          en.name, en.handle, en.facebookProfile || '', en.email, en.decathlonAccount || '',
-          `${(en.tasksDone||[]).length}/${totalTasks}`,
-          proofSummary,
-          en.eligible === true ? "Eligible" : en.eligible === false ? "Rejected" : "Pending",
-          new Date(en.ts).toLocaleString()
-        ]);
-      });
-      downloadCsv_(rows, (campaignMap.get(selectedCampaign) || 'campaign') + '-entries.csv');
-    });
-
-    document.getElementById('s-newcampaign').addEventListener('click', async () => {
-      if (!confirm("This closes the current campaign to new entries and starts a fresh one. Past entries stay saved and viewable via the campaign dropdown. Continue?")) return;
-      const newCfg = {
-        id: (document.getElementById('s-partner').value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-') || 'campaign') + "-" + Date.now(),
-        active: true,
-        campaignName: document.getElementById('s-name').value.trim(),
-        partnerName: document.getElementById('s-partner').value.trim(),
-        partnerHandle: document.getElementById('s-handle').value.trim(),
-        prize: document.getElementById('s-prize').value.trim(),
-        description: document.getElementById('s-description').value.trim(),
-        rules: document.getElementById('s-rules').value.trim(),
-        bannerImageUrl: document.getElementById('s-banner').value.trim(),
-        requireHandle: document.getElementById('s-req-handle').checked,
-        requireFacebook: document.getElementById('s-req-facebook').checked,
-        requireEmail: document.getElementById('s-req-email').checked,
-        requireDecathlonAccount: document.getElementById('s-req-decathlon').checked,
-        tasks: taskState
-      };
-      await saveConfig(newCfg);
-      window.__chubSelectedCampaign = newCfg.id;
-      renderAdmin();
-    });
-
-    document.getElementById('quick-open').addEventListener('click', () => {
-      const raw = document.getElementById('quick-handle').value.trim().replace(/^@/, '');
-      if (raw) window.open('https://instagram.com/' + encodeURIComponent(raw), '_blank', 'noopener');
-    });
-    document.getElementById('quick-handle').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('quick-open').click();
-    });
-
-    async function runCodeSearch(){
-      const resultEl = document.getElementById('code-result');
-      const raw = document.getElementById('code-lookup').value.trim().toUpperCase().replace(/^DK-?/, '');
-      if (!raw){ resultEl.innerHTML = ''; return; }
-      resultEl.innerHTML = `<div style="color:#7a8891;font-size:13px;">Searching…</div>`;
-      const allEntries = await listEntries(); // searches across all campaigns
-      const match = allEntries.find(en => {
-        const stored = (en.confirmCode || '').replace(/^DK-?/, '');
-        return stored === raw || String(en.ts).slice(-6) === raw;
-      });
-      if (!match){
-        resultEl.innerHTML = `<div class="msg err" style="margin:0;">No entry found with that code.</div>`;
-        return;
+    if (usesPoints){
+      const board = [...scopedEntries]
+        .map(en => ({ en, score: scoreForEntry_(en, cfg) }))
+        .sort((a,b) => b.score - a.score)
+        .slice(0, 10);
+      const boardEl = document.getElementById('leaderboard-area');
+      if (!board.length || board.every(b => b.score === 0)){
+        boardEl.innerHTML = `<div class="empty" style="padding:20px;"><div class="ic">🏆</div>No points earned yet — verify some tasks below.</div>`;
+      } else {
+        boardEl.innerHTML = `<table><thead><tr><th>#</th><th>Entrant</th><th>Score</th></tr></thead><tbody>${
+          board.map((b,i) => `<tr><td>${i+1}</td><td>${esc(b.en.name)} — ${esc(b.en.handle||'')}</td><td style="font-weight:700;">${b.score} pts</td></tr>`).join('')
+        }</tbody></table>`;
       }
-      const statusLabel = match.eligible === true ? "Eligible" : match.eligible === false ? "Rejected" : "Pending review";
-      resultEl.innerHTML = `
-        <div class="task-row" style="flex-direction:column;align-items:stretch;">
-          <div style="font-weight:700;">${esc(match.name)} — ${esc(match.handle || 'no handle')}</div>
-          <div style="color:#7a8891;font-size:13px;">${esc(match.email || '')}</div>
-          <div style="color:#7a8891;font-size:13px;">Campaign: ${esc(match.campaign || '')}</div>
-          <div style="margin-top:6px;"><span class="pill ${match.eligible===true?'confirmed':match.eligible===false?'no':'eligible'}">${esc(statusLabel)}</span></div>
-        </div>`;
     }
-    document.getElementById('code-search').addEventListener('click', runCodeSearch);
-    document.getElementById('code-lookup').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') runCodeSearch();
-    });
 
     // task editor rows
     const tasksWrap = document.getElementById('s-tasks');
@@ -779,7 +910,8 @@
         row.innerHTML = `
           <div style="flex:1;">
             <input type="text" data-i="${i}" data-f="label" value="${esc(t.label)}" style="margin-bottom:6px;" placeholder="Task label"/>
-            <input type="text" data-i="${i}" data-f="desc" value="${esc(t.desc||'')}" placeholder="Optional helper text"/>
+            <input type="text" data-i="${i}" data-f="desc" value="${esc(t.desc||'')}" placeholder="Optional helper text" style="margin-bottom:6px;"/>
+            <input type="number" min="0" data-i="${i}" data-f="points" value="${esc(t.points||'')}" placeholder="Points (optional — leave blank for no points)" style="max-width:260px;"/>
           </div>
           <div class="row-actions">
             <button type="button" class="icon-btn remove" data-remove="${i}">✕</button>
@@ -801,7 +933,7 @@
     }
     renderTaskRows();
     document.getElementById('s-addtask').addEventListener('click', () => {
-      taskState.push({ id: 't' + Date.now(), label: "New task", desc: "" });
+      taskState.push({ id: 't' + Date.now(), label: "New task", desc: "", points: "" });
       renderTaskRows();
     });
 
@@ -814,7 +946,7 @@
       try {
         const url = await uploadScreenshot(file);
         document.getElementById('s-banner').value = url;
-        statusEl.textContent = "✓ Uploaded — click 'Save changes to this campaign' to make it live.";
+        statusEl.textContent = "✓ Uploaded — click 'Save changes' to make it live.";
         statusEl.style.color = "var(--db-green)";
       } catch(err){
         statusEl.textContent = "Upload failed: " + (err.message || String(err));
@@ -840,11 +972,32 @@
         tasks: taskState
       };
       try {
-        await saveConfig(newCfg);
+        await saveCampaign(newCfg);
         document.getElementById('setup-msg').innerHTML = `<div class="msg ok">Campaign settings saved.</div>`;
       } catch(e){
         document.getElementById('setup-msg').innerHTML = `<div class="msg err">Couldn't save — try again.</div>`;
       }
+    });
+
+    document.getElementById('export-csv').addEventListener('click', () => {
+      const headerRow = ["Name","Instagram","Facebook","Email","Decathlon account","Tasks checked"];
+      if (usesPoints) headerRow.push("Score");
+      headerRow.push("Proof links","Status","Submitted");
+      const rows = [headerRow];
+      scopedEntries.forEach(en => {
+        const proofSummary = Object.entries(en.tasksProof || {}).map(([k,v]) => v).filter(Boolean).join(' | ');
+        const r = [en.name, en.handle, en.facebookProfile || '', en.email, en.decathlonAccount || '', `${(en.tasksDone||[]).length}/${totalTasks}`];
+        if (usesPoints) r.push(scoreForEntry_(en, cfg));
+        r.push(proofSummary, en.eligible === true ? "Eligible" : en.eligible === false ? "Rejected" : "Pending", new Date(en.ts).toLocaleString());
+        rows.push(r);
+      });
+      const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = cfg.campaignName + '-entries.csv';
+      a.click();
+      URL.revokeObjectURL(url);
     });
 
     // entries table
@@ -857,13 +1010,17 @@
           : en.eligible === false
           ? `<span class="pill no">Rejected</span>`
           : `<span class="pill eligible">Pending review</span>`;
-        const taskLabels = en.taskLabels || cfg.tasks.map(t => ({ id: t.id, label: t.label }));
-        const proofLinks = taskLabels.map(t => {
+        const taskLabels = en.taskLabels || cfg.tasks.map(t => ({ id: t.id, label: t.label, points: t.points || "" }));
+        const verified = en.taskVerified || {};
+        const proofRows = taskLabels.map(t => {
           const url = (en.tasksProof || {})[t.id];
-          const short = t.label.length > 22 ? t.label.slice(0,22) + "…" : t.label;
-          return url
-            ? `<div><a class="plink" href="${esc(url)}" target="_blank" rel="noopener">${esc(short)} ↗</a></div>`
-            : `<div style="color:#b0b8bd;">${esc(short)} — no link</div>`;
+          const short = t.label.length > 26 ? t.label.slice(0,26) + "…" : t.label;
+          const isVerified = !!verified[t.id];
+          const pts = Number(t.points) || 0;
+          return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <input type="checkbox" data-verify-ts="${en.ts}" data-verify-task="${esc(t.id)}" ${isVerified ? 'checked' : ''} style="accent-color:var(--db-blue);"/>
+            ${url ? `<a class="plink" href="${esc(url)}" target="_blank" rel="noopener">${esc(short)}${pts ? ` (${pts}pt)` : ''} ↗</a>` : `<span style="color:#b0b8bd;">${esc(short)} — no link</span>`}
+          </div>`;
         }).join('');
         const igHandle = (en.handle || '').replace(/^@/, '');
         const fbRaw = (en.facebookProfile || '').trim();
@@ -880,7 +1037,8 @@
             ${fbUrl ? `<div><a class="plink" style="font-size:12px;" href="${esc(fbUrl)}" target="_blank" rel="noopener">Open their Facebook ↗</a></div>` : ''}
           </td>
           <td>${(en.tasksDone||[]).length}/${totalTasks} checked</td>
-          <td style="font-size:12.5px;">${proofLinks}</td>
+          ${usesPoints ? `<td style="font-weight:700;">${scoreForEntry_(en, cfg)} pts</td>` : ''}
+          <td style="font-size:12.5px;">${proofRows}</td>
           <td>${statusPill}</td>
           <td>
             <div class="row-actions">
@@ -894,13 +1052,17 @@
       });
 
       tbody.querySelectorAll('[data-eligible]').forEach(b => b.addEventListener('click', async (e) => {
-        await setEligibility(e.target.dataset.eligible, true); renderAdmin();
+        await setEligibility(e.target.dataset.eligible, true); renderCampaignManage(cfg.id);
       }));
       tbody.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', async (e) => {
-        await setEligibility(e.target.dataset.reject, false); renderAdmin();
+        await setEligibility(e.target.dataset.reject, false); renderCampaignManage(cfg.id);
       }));
       tbody.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', async (e) => {
-        if (confirm('Delete this entry permanently?')){ await deleteEntry(e.target.dataset.delete); renderAdmin(); }
+        if (confirm('Delete this entry permanently?')){ await deleteEntry(e.target.dataset.delete); renderCampaignManage(cfg.id); }
+      }));
+      tbody.querySelectorAll('[data-verify-ts]').forEach(cb => cb.addEventListener('change', async (e) => {
+        await setTaskVerified(e.target.dataset.verifyTs, e.target.dataset.verifyTask, e.target.checked);
+        renderCampaignManage(cfg.id);
       }));
     }
 
@@ -915,6 +1077,22 @@
         const parsed = JSON.parse(v.value);
         if (String(parsed.ts) === String(ts)){
           parsed.eligible = val;
+          await kvSet(k, JSON.stringify(parsed));
+          return;
+        }
+      }
+    }
+  }
+
+  async function setTaskVerified(ts, taskId, val){
+    const keys = await kvList("entry:");
+    for (const k of keys){
+      const v = await kvGet(k);
+      if (v){
+        const parsed = JSON.parse(v.value);
+        if (String(parsed.ts) === String(ts)){
+          parsed.taskVerified = parsed.taskVerified || {};
+          parsed.taskVerified[taskId] = val;
           await kvSet(k, JSON.stringify(parsed));
           return;
         }
