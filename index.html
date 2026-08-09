@@ -152,31 +152,31 @@
   #chub .lockscreen { max-width: 360px; margin: 80px auto; text-align: center; }
   #chub .lockscreen .ic { font-size: 34px; margin-bottom: 10px; }
 
-  #chub .drawmode-overlay {
+  .drawmode-overlay {
     position: fixed; inset: 0; z-index: 9999;
     background: radial-gradient(circle at 50% 30%, #0d3a6b, #04234c 70%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: #fff; text-align: center; padding: 40px 20px;
   }
-  #chub .drawmode-exit {
+  .drawmode-exit {
     position: absolute; top: 24px; right: 28px; color: #cfe4f2; text-decoration: none;
     font-size: 13px; font-weight: 600; border: 1.5px solid rgba(255,255,255,0.25);
     padding: 8px 14px; border-radius: 100px; cursor: pointer; background: transparent;
   }
-  #chub .drawmode-exit:hover { border-color: #fff; }
-  #chub .drawmode-eyebrow { font-size: 13px; text-transform: uppercase; letter-spacing: 0.15em; color: #8fc7ea; margin-bottom: 10px; }
-  #chub .drawmode-prize { font-size: 22px; font-weight: 700; color: #cfe4f2; margin-bottom: 40px; }
-  #chub .drawmode-name { font-size: 64px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 8px; }
-  #chub .drawmode-handle { font-size: 20px; color: #cfe4f2; margin-bottom: 40px; }
-  #chub .drawmode-btn {
+  .drawmode-exit:hover { border-color: #fff; }
+  .drawmode-eyebrow { font-size: 13px; text-transform: uppercase; letter-spacing: 0.15em; color: #8fc7ea; margin-bottom: 10px; }
+  .drawmode-prize { font-size: 22px; font-weight: 700; color: #cfe4f2; margin-bottom: 40px; }
+  .drawmode-name { font-size: 64px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 8px; }
+  .drawmode-handle { font-size: 20px; color: #cfe4f2; margin-bottom: 40px; }
+  .drawmode-btn {
     background: linear-gradient(135deg,#d8912b,#b8721a); color: #fff; border: none;
     padding: 20px 44px; font-size: 20px; font-weight: 800; border-radius: 100px; cursor: pointer;
     box-shadow: 0 10px 40px rgba(216,145,43,0.4);
   }
-  #chub .drawmode-btn:hover { filter: brightness(1.08); }
-  #chub .drawmode-count { font-size: 14px; color: #8fc7ea; margin-top: 16px; }
+  .drawmode-btn:hover { filter: brightness(1.08); }
+  .drawmode-count { font-size: 14px; color: #8fc7ea; margin-top: 16px; }
   @media (max-width: 600px) {
-    #chub .drawmode-name { font-size: 40px; }
+    .drawmode-name { font-size: 40px; }
   }
 </style>
 
@@ -879,10 +879,12 @@
       <div class="card" id="draw-card">
         <h2>Winner draw</h2>
         <p class="lede">Draws only from entries marked <b>eligible</b> below.</p>
-        <div id="draw-area"></div>
-        <div style="display:flex; gap:10px;">
+        <label class="first" style="margin-top:0;">Number of winners</label>
+        <input type="number" id="draw-count" min="1" max="${eligibleCount || 1}" value="1" style="max-width:120px;" />
+        <div id="draw-area" style="margin-top:14px;"></div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
           <button class="btn gold" id="draw-btn" style="flex:1;" ${eligibleCount === 0 ? 'disabled' : ''}>
-            🎲 Draw winner from ${eligibleCount} eligible entr${eligibleCount === 1 ? 'y' : 'ies'}
+            🎲 Draw from ${eligibleCount} eligible entr${eligibleCount === 1 ? 'y' : 'ies'}
           </button>
           <button class="btn secondary" id="draw-mode-btn" type="button" ${eligibleCount === 0 ? 'disabled' : ''}>
             🎬 Draw Mode
@@ -1101,8 +1103,14 @@
       }));
     }
 
-    document.getElementById('draw-btn').addEventListener('click', () => runDraw(scopedEntries.filter(e => e.eligible === true)));
-    document.getElementById('draw-mode-btn').addEventListener('click', () => renderDrawMode(cfg, scopedEntries.filter(e => e.eligible === true)));
+    document.getElementById('draw-btn').addEventListener('click', () => {
+      const count = Math.max(1, parseInt(document.getElementById('draw-count').value, 10) || 1);
+      runDraw(scopedEntries.filter(e => e.eligible === true), count);
+    });
+    document.getElementById('draw-mode-btn').addEventListener('click', () => {
+      const count = Math.max(1, parseInt(document.getElementById('draw-count').value, 10) || 1);
+      renderDrawMode(cfg, scopedEntries.filter(e => e.eligible === true), count);
+    });
   }
 
   async function setEligibility(ts, val){
@@ -1136,7 +1144,11 @@
     }
   }
 
-  function renderDrawMode(cfg, pool){
+  function renderDrawMode(cfg, pool, count){
+    count = Math.min(Math.max(1, count || 1), pool.length);
+    let remaining = [...pool];
+    let winners = [];
+
     const overlay = document.createElement('div');
     overlay.className = 'drawmode-overlay';
     overlay.innerHTML = `
@@ -1145,7 +1157,8 @@
       <div class="drawmode-prize">${esc(cfg.prize)}</div>
       <div class="drawmode-name" id="drawmode-name">Ready?</div>
       <div class="drawmode-handle" id="drawmode-handle">&nbsp;</div>
-      <button class="drawmode-btn" id="drawmode-btn">🎲 Draw the winner</button>
+      <div id="drawmode-winners" style="margin:20px 0; max-width:480px;"></div>
+      <button class="drawmode-btn" id="drawmode-btn">🎲 Draw winner 1 of ${count}</button>
       <div class="drawmode-count">${pool.length} eligible entr${pool.length === 1 ? 'y' : 'ies'} in the draw</div>
     `;
     document.body.appendChild(overlay);
@@ -1154,31 +1167,64 @@
       overlay.remove();
     });
 
-    document.getElementById('drawmode-btn').addEventListener('click', (e) => {
-      if (!pool.length) return;
-      e.target.disabled = true;
-      e.target.style.opacity = '0.5';
+    function renderWinnersList(){
+      const listEl = document.getElementById('drawmode-winners');
+      if (!winners.length){ listEl.innerHTML = ''; return; }
+      listEl.innerHTML = winners.map((w, i) => `
+        <div style="display:flex; justify-content:space-between; gap:16px; padding:10px 16px; background:rgba(255,255,255,0.08); border-radius:10px; margin-bottom:8px; text-align:left;">
+          <div style="font-weight:700;">#${i+1} ${esc(w.name)}</div>
+          <div style="color:#cfe4f2;">${esc(w.handle||'')}</div>
+        </div>`).join('');
+    }
+
+    function drawNext(){
+      if (!remaining.length) return;
+      const btn = document.getElementById('drawmode-btn');
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
       let i = 0;
-      const spins = 26;
+      const spins = 22;
       const nameEl = document.getElementById('drawmode-name');
       const handleEl = document.getElementById('drawmode-handle');
       const interval = setInterval(() => {
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = remaining[Math.floor(Math.random() * remaining.length)];
         nameEl.textContent = pick.name;
         handleEl.textContent = pick.handle || '';
         i++;
         if (i >= spins){
           clearInterval(interval);
-          const winner = pool[Math.floor(Math.random() * pool.length)];
+          const idx = Math.floor(Math.random() * remaining.length);
+          const winner = remaining[idx];
+          remaining.splice(idx, 1);
+          winners.push(winner);
           nameEl.textContent = "🎉 " + winner.name;
           handleEl.textContent = (winner.handle || '') + (winner.email ? ' · ' + winner.email : '');
-          e.target.style.display = 'none';
+          renderWinnersList();
+          if (winners.length >= count){
+            btn.style.display = 'none';
+          } else {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.textContent = `🎲 Draw winner ${winners.length + 1} of ${count}`;
+          }
         }
       }, 90);
-    });
+    }
+
+    document.getElementById('drawmode-btn').addEventListener('click', drawNext);
   }
 
-  function runDraw(pool){
+  function shuffle_(arr){
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function runDraw(pool, count){
+    count = Math.min(Math.max(1, count || 1), pool.length);
     const area = document.getElementById('draw-area');
     if (!pool.length) return;
     let i = 0;
@@ -1194,11 +1240,14 @@
       i++;
       if (i >= spins){
         clearInterval(interval);
-        const winner = pool[Math.floor(Math.random() * pool.length)];
+        const winners = shuffle_(pool).slice(0, count);
         el.innerHTML = `
-          <div class="wlabel">🎉 Winner</div>
-          <div class="wname">${esc(winner.name)}</div>
-          <div class="whandle">${esc(winner.handle)} · ${esc(winner.email)}</div>
+          <div class="wlabel">🎉 ${winners.length === 1 ? 'Winner' : winners.length + ' Winners'}</div>
+          ${winners.map(w => `
+            <div style="margin-top:10px;">
+              <div class="wname" style="font-size:${winners.length > 1 ? '22px' : '30px'};">${esc(w.name)}</div>
+              <div class="whandle">${esc(w.handle)} · ${esc(w.email)}</div>
+            </div>`).join('')}
         `;
       }
     }, 90);
