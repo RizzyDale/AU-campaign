@@ -151,6 +151,33 @@
 
   #chub .lockscreen { max-width: 360px; margin: 80px auto; text-align: center; }
   #chub .lockscreen .ic { font-size: 34px; margin-bottom: 10px; }
+
+  #chub .drawmode-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: radial-gradient(circle at 50% 30%, #0d3a6b, #04234c 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; text-align: center; padding: 40px 20px;
+  }
+  #chub .drawmode-exit {
+    position: absolute; top: 24px; right: 28px; color: #cfe4f2; text-decoration: none;
+    font-size: 13px; font-weight: 600; border: 1.5px solid rgba(255,255,255,0.25);
+    padding: 8px 14px; border-radius: 100px; cursor: pointer; background: transparent;
+  }
+  #chub .drawmode-exit:hover { border-color: #fff; }
+  #chub .drawmode-eyebrow { font-size: 13px; text-transform: uppercase; letter-spacing: 0.15em; color: #8fc7ea; margin-bottom: 10px; }
+  #chub .drawmode-prize { font-size: 22px; font-weight: 700; color: #cfe4f2; margin-bottom: 40px; }
+  #chub .drawmode-name { font-size: 64px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 8px; }
+  #chub .drawmode-handle { font-size: 20px; color: #cfe4f2; margin-bottom: 40px; }
+  #chub .drawmode-btn {
+    background: linear-gradient(135deg,#d8912b,#b8721a); color: #fff; border: none;
+    padding: 20px 44px; font-size: 20px; font-weight: 800; border-radius: 100px; cursor: pointer;
+    box-shadow: 0 10px 40px rgba(216,145,43,0.4);
+  }
+  #chub .drawmode-btn:hover { filter: brightness(1.08); }
+  #chub .drawmode-count { font-size: 14px; color: #8fc7ea; margin-top: 16px; }
+  @media (max-width: 600px) {
+    #chub .drawmode-name { font-size: 40px; }
+  }
 </style>
 
 <div id="chub">
@@ -192,9 +219,9 @@
     requireEmail: true,
     requireDecathlonAccount: true,
     tasks: [
-      { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw.", points: "" },
-      { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above.", points: "" },
-      { id: "t3", label: "Purchase a qualifying item + keep proof", desc: "Paste a link to your order confirmation or a screenshot upload (e.g. Drive/Imgur link).", points: "" }
+      { id: "t1", label: "Follow @decathlonau on Instagram", desc: "We check this manually before the draw.", link: "https://instagram.com/decathlonau", points: "" },
+      { id: "t2", label: "Follow the partner's Instagram", desc: "Handle shown above.", link: "", points: "" },
+      { id: "t3", label: "Purchase a qualifying item + keep proof", desc: "Paste a link to your order confirmation or a screenshot upload (e.g. Drive/Imgur link).", link: "", points: "" }
     ]
   };
 
@@ -490,6 +517,7 @@
           </div>
         </div>
         <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          ${t.link ? `<a class="btn secondary" href="${esc(t.link)}" target="_blank" rel="noopener" style="padding:9px 14px; font-size:13px; text-decoration:none;">↗ Go do this</a>` : ''}
           <label class="btn secondary" style="cursor:pointer; padding:9px 14px; font-size:13px;">
             📷 Upload screenshot
             <input type="file" accept="image/*" data-upload-for="${esc(t.id)}" style="display:none;" />
@@ -852,9 +880,15 @@
         <h2>Winner draw</h2>
         <p class="lede">Draws only from entries marked <b>eligible</b> below.</p>
         <div id="draw-area"></div>
-        <button class="btn gold full" id="draw-btn" ${eligibleCount === 0 ? 'disabled' : ''}>
-          🎲 Draw winner from ${eligibleCount} eligible entr${eligibleCount === 1 ? 'y' : 'ies'}
-        </button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn gold" id="draw-btn" style="flex:1;" ${eligibleCount === 0 ? 'disabled' : ''}>
+            🎲 Draw winner from ${eligibleCount} eligible entr${eligibleCount === 1 ? 'y' : 'ies'}
+          </button>
+          <button class="btn secondary" id="draw-mode-btn" type="button" ${eligibleCount === 0 ? 'disabled' : ''}>
+            🎬 Draw Mode
+          </button>
+        </div>
+        <div class="hint">Draw Mode opens a clean, full-screen reveal screen — good for recording a video of the draw.</div>
       </div>
 
       <div class="card">
@@ -911,6 +945,7 @@
           <div style="flex:1;">
             <input type="text" data-i="${i}" data-f="label" value="${esc(t.label)}" style="margin-bottom:6px;" placeholder="Task label"/>
             <input type="text" data-i="${i}" data-f="desc" value="${esc(t.desc||'')}" placeholder="Optional helper text" style="margin-bottom:6px;"/>
+            <input type="url" data-i="${i}" data-f="link" value="${esc(t.link||'')}" placeholder="Link for a button (optional — e.g. the Instagram profile to follow)" style="margin-bottom:6px;"/>
             <input type="number" min="0" data-i="${i}" data-f="points" value="${esc(t.points||'')}" placeholder="Points (optional — leave blank for no points)" style="max-width:260px;"/>
           </div>
           <div class="row-actions">
@@ -933,7 +968,7 @@
     }
     renderTaskRows();
     document.getElementById('s-addtask').addEventListener('click', () => {
-      taskState.push({ id: 't' + Date.now(), label: "New task", desc: "", points: "" });
+      taskState.push({ id: 't' + Date.now(), label: "New task", desc: "", link: "", points: "" });
       renderTaskRows();
     });
 
@@ -1067,6 +1102,7 @@
     }
 
     document.getElementById('draw-btn').addEventListener('click', () => runDraw(scopedEntries.filter(e => e.eligible === true)));
+    document.getElementById('draw-mode-btn').addEventListener('click', () => renderDrawMode(cfg, scopedEntries.filter(e => e.eligible === true)));
   }
 
   async function setEligibility(ts, val){
@@ -1098,6 +1134,48 @@
         }
       }
     }
+  }
+
+  function renderDrawMode(cfg, pool){
+    const overlay = document.createElement('div');
+    overlay.className = 'drawmode-overlay';
+    overlay.innerHTML = `
+      <button class="drawmode-exit" id="drawmode-exit">✕ Exit</button>
+      <div class="drawmode-eyebrow">${esc(cfg.campaignName)}</div>
+      <div class="drawmode-prize">${esc(cfg.prize)}</div>
+      <div class="drawmode-name" id="drawmode-name">Ready?</div>
+      <div class="drawmode-handle" id="drawmode-handle">&nbsp;</div>
+      <button class="drawmode-btn" id="drawmode-btn">🎲 Draw the winner</button>
+      <div class="drawmode-count">${pool.length} eligible entr${pool.length === 1 ? 'y' : 'ies'} in the draw</div>
+    `;
+    document.body.appendChild(overlay);
+
+    document.getElementById('drawmode-exit').addEventListener('click', () => {
+      overlay.remove();
+    });
+
+    document.getElementById('drawmode-btn').addEventListener('click', (e) => {
+      if (!pool.length) return;
+      e.target.disabled = true;
+      e.target.style.opacity = '0.5';
+      let i = 0;
+      const spins = 26;
+      const nameEl = document.getElementById('drawmode-name');
+      const handleEl = document.getElementById('drawmode-handle');
+      const interval = setInterval(() => {
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        nameEl.textContent = pick.name;
+        handleEl.textContent = pick.handle || '';
+        i++;
+        if (i >= spins){
+          clearInterval(interval);
+          const winner = pool[Math.floor(Math.random() * pool.length)];
+          nameEl.textContent = "🎉 " + winner.name;
+          handleEl.textContent = (winner.handle || '') + (winner.email ? ' · ' + winner.email : '');
+          e.target.style.display = 'none';
+        }
+      }, 90);
+    });
   }
 
   function runDraw(pool){
