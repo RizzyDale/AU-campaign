@@ -1,63 +1,86 @@
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
   :root {
     --db-blue: #0082c3;
+    --db-blue-bright: #00a8e8;
     --db-navy: #04234c;
+    --db-navy-deep: #021427;
     --db-ink: #10151b;
     --db-paper: #f5f7f6;
     --db-line: #d8dfe2;
     --db-green: #1f8a5f;
     --db-amber: #c47a1f;
     --db-red: #b23b3b;
-    font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+    --db-energy: #ff5a36;
+    font-family: 'Manrope', -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
-  #chub { color: var(--db-ink); background: transparent; min-height: 100%; }
+  #chub {
+    color: var(--db-ink);
+    background: linear-gradient(160deg, #eaf6fc 0%, #f5f7f6 28%, #f5f7f6 100%);
+    min-height: 100%;
+  }
   #chub .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 60px; }
 
   #chub .masthead {
+    position: relative;
     display: flex; align-items: center; justify-content: space-between;
-    padding-bottom: 18px; margin-bottom: 22px; border-bottom: 3px solid var(--db-navy);
+    padding: 16px 22px; margin-bottom: 24px; border-radius: 14px;
+    background: linear-gradient(115deg, var(--db-navy) 0%, var(--db-blue) 130%);
+    overflow: hidden;
   }
-  #chub .brand { display: flex; align-items: center; gap: 10px; }
+  #chub .masthead::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.12) 50%, transparent 60%);
+  }
+  #chub .brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
   #chub .brand .mark {
-    width: 34px; height: 34px; border-radius: 9px; background: var(--db-blue);
-    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 15px;
-    transform: rotate(-6deg);
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(160deg, var(--db-blue-bright), var(--db-blue));
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px;
+    box-shadow: 0 3px 10px rgba(0,168,232,0.4);
   }
-  #chub .brand .name { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; color: var(--db-navy); }
-  #chub .brand .sub { font-size: 11px; color: #5b6b76; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 1px; }
+  #chub .brand .name { font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: #fff; }
+  #chub .brand .sub { font-size: 11px; color: #9fd4ef; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px; font-weight: 700; }
 
-  #chub .tabs { display: flex; gap: 6px; }
+  #chub .tabs { display: flex; gap: 6px; position: relative; z-index: 1; }
   #chub .tab-btn {
-    border: 1.5px solid var(--db-line); background: #fff; color: var(--db-navy);
-    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1.5px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #fff;
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
     transition: all 0.15s ease;
   }
-  #chub .tab-btn.active { background: var(--db-navy); border-color: var(--db-navy); color: #fff; }
-  #chub .tab-btn:hover:not(.active) { border-color: var(--db-blue); color: var(--db-blue); }
+  #chub .tab-btn.active { background: #fff; border-color: #fff; color: var(--db-navy); }
+  #chub .tab-btn:hover:not(.active) { border-color: #fff; }
 
   #chub .card {
-    background: #fff; border: 1px solid var(--db-line); border-radius: 14px;
+    background: #fff; border: 1px solid var(--db-line); border-left: 4px solid var(--db-blue);
+    border-radius: 14px;
     padding: 24px; margin-bottom: 18px;
+    box-shadow: 0 2px 16px rgba(4,35,76,0.05);
   }
   #chub .eyebrow {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em;
     color: var(--db-blue); margin-bottom: 6px;
   }
-  #chub h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; color: var(--db-navy); }
-  #chub h2 { font-size: 17px; margin: 0 0 14px; color: var(--db-navy); }
+  #chub h1 { font-size: 27px; font-weight: 800; margin: 0 0 4px; letter-spacing: -0.02em; color: var(--db-navy); }
+  #chub h2 { font-size: 17px; font-weight: 800; margin: 0 0 14px; color: var(--db-navy); }
   #chub p.lede { color: #4a5a66; font-size: 14.5px; line-height: 1.5; margin: 0 0 18px; }
 
   #chub .prize-banner {
-    background: linear-gradient(135deg, var(--db-navy), #0d3a6b);
-    color: #fff; border-radius: 14px; padding: 22px 24px; margin-bottom: 18px;
+    position: relative; overflow: hidden;
+    background: linear-gradient(120deg, var(--db-navy) 0%, #0d3a6b 70%, var(--db-blue-bright) 140%);
+    color: #fff; border-radius: 14px; padding: 24px 26px; margin-bottom: 18px;
     display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
   }
-  #chub .prize-banner .plabel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; color: #8fc7ea; margin-bottom: 5px; }
-  #chub .prize-banner .pprize { font-size: 22px; font-weight: 800; }
+  #chub .prize-banner::after {
+    content: "🏅"; position: absolute; right: -10px; top: -18px; font-size: 90px; opacity: 0.1;
+  }
+  #chub .prize-banner .plabel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #7fd8ff; margin-bottom: 5px; font-weight: 800; }
+  #chub .prize-banner .pprize { font-size: 24px; font-weight: 800; }
   #chub .prize-banner .ppartner { font-size: 13.5px; color: #cfe4f2; margin-top: 3px; }
-  #chub .prize-banner .pcount { text-align: right; }
-  #chub .prize-banner .pcount .n { font-size: 28px; font-weight: 800; line-height: 1; }
+  #chub .prize-banner .pcount { text-align: right; position: relative; z-index: 1; }
+  #chub .prize-banner .pcount .n { font-size: 30px; font-weight: 800; line-height: 1; }
   #chub .prize-banner .pcount .l { font-size: 11px; color: #8fc7ea; text-transform: uppercase; letter-spacing: 0.07em; }
 
   #chub .promo-banner {
@@ -68,7 +91,7 @@
     #chub .promo-banner { aspect-ratio: 16 / 9; }
   }
 
-  #chub label { display: block; font-size: 13px; font-weight: 600; color: var(--db-navy); margin: 14px 0 6px; }
+  #chub label { display: block; font-size: 13px; font-weight: 700; color: var(--db-navy); margin: 14px 0 6px; }
   #chub label.first { margin-top: 0; }
   #chub input[type=text], #chub input[type=email], #chub input[type=url], #chub textarea {
     width: 100%; padding: 10px 12px; border: 1.5px solid var(--db-line); border-radius: 8px;
@@ -79,23 +102,27 @@
 
   #chub .task-row {
     display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
-    border: 1.5px solid var(--db-line); border-radius: 10px; margin-bottom: 8px; background: var(--db-paper);
+    border: 1.5px solid var(--db-line); border-left: 3px solid var(--db-blue-bright);
+    border-radius: 10px; margin-bottom: 8px; background: var(--db-paper);
   }
   #chub .task-row input[type=checkbox] { margin-top: 2px; width: 17px; height: 17px; accent-color: var(--db-blue); flex-shrink: 0; }
-  #chub .task-row .tlabel { font-size: 14px; font-weight: 600; color: var(--db-ink); }
+  #chub .task-row .tlabel { font-size: 14px; font-weight: 700; color: var(--db-ink); }
   #chub .task-row .tdesc { font-size: 12.5px; color: #6b7a84; margin-top: 2px; }
 
   #chub .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--db-blue); color: #fff; border: none; border-radius: 9px;
-    padding: 12px 20px; font-size: 14.5px; font-weight: 700; cursor: pointer; transition: filter 0.15s;
+    background: linear-gradient(135deg, var(--db-blue-bright), var(--db-blue)); color: #fff;
+    border: none; border-radius: 9px;
+    padding: 12px 20px; font-size: 14.5px; font-weight: 800; letter-spacing: 0.01em;
+    cursor: pointer; transition: filter 0.15s, transform 0.1s;
+    box-shadow: 0 4px 14px rgba(0,130,195,0.35);
   }
-  #chub .btn:hover { filter: brightness(1.08); }
-  #chub .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  #chub .btn.secondary { background: #fff; color: var(--db-navy); border: 1.5px solid var(--db-line); }
+  #chub .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  #chub .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  #chub .btn.secondary { background: #fff; color: var(--db-navy); border: 1.5px solid var(--db-line); box-shadow: none; }
   #chub .btn.secondary:hover { border-color: var(--db-blue); color: var(--db-blue); }
-  #chub .btn.danger { background: var(--db-red); }
-  #chub .btn.gold { background: linear-gradient(135deg,#d8912b,#b8721a); }
+  #chub .btn.danger { background: var(--db-red); box-shadow: 0 4px 14px rgba(178,59,59,0.3); }
+  #chub .btn.gold { background: linear-gradient(135deg,#d8912b,#b8721a); box-shadow: 0 4px 14px rgba(184,114,26,0.3); }
   #chub .btn.full { width: 100%; }
 
   #chub .msg { padding: 12px 14px; border-radius: 9px; font-size: 13.5px; margin-bottom: 14px; }
@@ -117,7 +144,7 @@
 
   #chub .stat-row { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
   #chub .stat { flex: 1; min-width: 120px; background: var(--db-paper); border: 1px solid var(--db-line); border-radius: 10px; padding: 14px 16px; }
-  #chub .stat .n { font-size: 24px; font-weight: 800; color: var(--db-navy); }
+  #chub .stat .n { font-size: 25px; font-weight: 800; color: var(--db-blue); }
   #chub .stat .l { font-size: 11.5px; color: #6b7a84; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
 
   #chub .empty { text-align: center; padding: 40px 20px; color: #8494a0; }
@@ -125,7 +152,7 @@
 
   #chub .winner-box {
     text-align: center; padding: 34px 20px; border-radius: 14px;
-    background: linear-gradient(135deg,#04234c,#0d3a6b); color: #fff; margin-bottom: 18px;
+    background: linear-gradient(120deg,var(--db-navy),#0d3a6b,var(--db-blue-bright)); color: #fff; margin-bottom: 18px;
   }
   #chub .winner-box .wlabel { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #8fc7ea; margin-bottom: 10px; }
   #chub .winner-box .wname { font-size: 30px; font-weight: 800; margin-bottom: 4px; }
@@ -796,6 +823,20 @@
         <a href="${esc(campaignLink_(cfg.id))}" target="_blank" style="font-size:12.5px; color:var(--db-blue); text-decoration:none;">View public page ↗</a>
       </div>
 
+      <div class="card">
+        <h2>🎰 Mystery Prize Picker links</h2>
+        <p class="lede" style="margin-bottom:10px;">Ready-to-copy links for this campaign's prize machine — no more hand-typing the URL.</p>
+        <label class="first" style="margin-top:0;">Which version</label>
+        <select id="pm-version">
+          <option value="decathlon">Decathlon (blue)</option>
+          <option value="general">Mystery Prize Picker (red / general)</option>
+        </select>
+        <label>Campaign slug</label>
+        <input type="text" id="pm-slug" value="${esc(cfg.id)}" />
+        <div class="hint">This becomes ?campaign=... in the link. Defaults to this campaign's ID — change it if you want this campaign to point at a different prize pool.</div>
+        <div id="pm-links" style="margin-top:14px;"></div>
+      </div>
+
       <div class="stat-row">
         <div class="stat"><div class="n">${scopedEntries.length}</div><div class="l">Entries</div></div>
         <div class="stat"><div class="n">${pendingCount}</div><div class="l">Awaiting review</div></div>
@@ -920,6 +961,43 @@
       adminCampaignId = null;
       renderAdmin();
     });
+
+    // ---- Mystery Prize Picker link helper ----
+    const PRIZE_MACHINE_BASE = "https://rizzydale.github.io/prize-machine/";
+    function renderPMLinks(){
+      const version = document.getElementById('pm-version').value;
+      const slug = document.getElementById('pm-slug').value.trim() || cfg.id;
+      const file = version === 'decathlon' ? 'prize_machine_decathlon.html' : 'prize_machine_general.html';
+      const publicLink = `${PRIZE_MACHINE_BASE}${file}?campaign=${encodeURIComponent(slug)}`;
+      const adminLink = `${PRIZE_MACHINE_BASE}${file}?campaign=${encodeURIComponent(slug)}&admin=1`;
+      document.getElementById('pm-links').innerHTML = `
+        <div class="toggle-row" style="border:none; padding:8px 0; align-items:flex-start;">
+          <div style="flex:1; overflow:hidden; margin-right:10px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#7a8891; letter-spacing:0.05em;">Public — give to winners</div>
+            <div style="font-size:13px; word-break:break-all;">${esc(publicLink)}</div>
+          </div>
+          <button class="btn secondary" type="button" data-copy="${esc(publicLink)}" style="flex-shrink:0;">Copy</button>
+        </div>
+        <div class="toggle-row" style="border:none; padding:8px 0; align-items:flex-start;">
+          <div style="flex:1; overflow:hidden; margin-right:10px;">
+            <div style="font-size:11px; text-transform:uppercase; color:#7a8891; letter-spacing:0.05em;">Admin — only you</div>
+            <div style="font-size:13px; word-break:break-all;">${esc(adminLink)}</div>
+          </div>
+          <button class="btn secondary" type="button" data-copy="${esc(adminLink)}" style="flex-shrink:0;">Copy</button>
+        </div>
+      `;
+      document.querySelectorAll('#pm-links [data-copy]').forEach(b => {
+        b.addEventListener('click', () => {
+          navigator.clipboard.writeText(b.dataset.copy);
+          const original = b.textContent;
+          b.textContent = 'Copied!';
+          setTimeout(() => { b.textContent = original; }, 1200);
+        });
+      });
+    }
+    renderPMLinks();
+    document.getElementById('pm-version').addEventListener('change', renderPMLinks);
+    document.getElementById('pm-slug').addEventListener('input', renderPMLinks);
 
     function renderLeaderboard(){
       const sizeInput = document.getElementById('leaderboard-size');
