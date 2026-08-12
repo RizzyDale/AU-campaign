@@ -13,6 +13,8 @@
     --db-amber: #c47a1f;
     --db-red: #b23b3b;
     --db-energy: #ff5a36;
+    --db-gold: #ffc23c;
+    --db-gold-dark: #b8721a;
     font-family: 'Manrope', -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
@@ -28,6 +30,8 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 16px 22px; margin-bottom: 24px; border-radius: 14px;
     background: linear-gradient(115deg, var(--db-navy) 0%, var(--db-blue) 130%);
+    border: 2px solid var(--db-gold);
+    box-shadow: 0 0 0 1px rgba(255,194,60,0.15), 0 8px 24px rgba(4,35,76,0.3);
     overflow: hidden;
   }
   #chub .masthead::after {
@@ -42,7 +46,7 @@
     box-shadow: 0 3px 10px rgba(0,168,232,0.4);
   }
   #chub .brand .name { font-weight: 800; font-size: 19px; letter-spacing: -0.02em; color: #fff; }
-  #chub .brand .sub { font-size: 11px; color: #9fd4ef; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px; font-weight: 700; }
+  #chub .brand .sub { font-size: 11px; color: var(--db-gold); text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px; font-weight: 700; }
 
   #chub .tabs { display: flex; gap: 6px; position: relative; z-index: 1; }
   #chub .tab-btn {
@@ -51,7 +55,7 @@
     transition: all 0.15s ease;
   }
   #chub .tab-btn.active { background: #fff; border-color: #fff; color: var(--db-navy); }
-  #chub .tab-btn:hover:not(.active) { border-color: #fff; }
+  #chub .tab-btn:hover:not(.active) { border-color: var(--db-gold); color: var(--db-gold); }
 
   #chub .card {
     background: #fff; border: 1px solid var(--db-line); border-left: 4px solid var(--db-blue);
@@ -72,20 +76,22 @@
     background: linear-gradient(120deg, var(--db-navy) 0%, #0d3a6b 70%, var(--db-blue-bright) 140%);
     color: #fff; border-radius: 14px; padding: 24px 26px; margin-bottom: 18px;
     display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+    border: 2px solid var(--db-gold);
+    box-shadow: 0 0 24px rgba(255,194,60,0.15);
   }
   #chub .prize-banner::after {
     content: "🏅"; position: absolute; right: -10px; top: -18px; font-size: 90px; opacity: 0.1;
   }
-  #chub .prize-banner .plabel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #7fd8ff; margin-bottom: 5px; font-weight: 800; }
+  #chub .prize-banner .plabel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--db-gold); margin-bottom: 5px; font-weight: 800; }
   #chub .prize-banner .pprize { font-size: 24px; font-weight: 800; }
   #chub .prize-banner .ppartner { font-size: 13.5px; color: #cfe4f2; margin-top: 3px; }
   #chub .prize-banner .pcount { text-align: right; position: relative; z-index: 1; }
-  #chub .prize-banner .pcount .n { font-size: 30px; font-weight: 800; line-height: 1; }
+  #chub .prize-banner .pcount .n { font-size: 30px; font-weight: 800; line-height: 1; color: var(--db-gold); }
   #chub .prize-banner .pcount .l { font-size: 11px; color: #8fc7ea; text-transform: uppercase; letter-spacing: 0.07em; }
 
   #chub .promo-banner {
     width: 100%; aspect-ratio: 4 / 1; border-radius: 14px; margin-bottom: 18px; display: block;
-    object-fit: cover; border: 1px solid var(--db-line); background: var(--db-paper);
+    object-fit: cover; border: 2px solid var(--db-gold); background: var(--db-paper);
   }
   @media (max-width: 480px) {
     #chub .promo-banner { aspect-ratio: 16 / 9; }
@@ -122,7 +128,7 @@
   #chub .btn.secondary { background: #fff; color: var(--db-navy); border: 1.5px solid var(--db-line); box-shadow: none; }
   #chub .btn.secondary:hover { border-color: var(--db-blue); color: var(--db-blue); }
   #chub .btn.danger { background: var(--db-red); box-shadow: 0 4px 14px rgba(178,59,59,0.3); }
-  #chub .btn.gold { background: linear-gradient(135deg,#d8912b,#b8721a); box-shadow: 0 4px 14px rgba(184,114,26,0.3); }
+  #chub .btn.gold { background: linear-gradient(135deg,var(--db-gold),var(--db-gold-dark)); box-shadow: 0 4px 14px rgba(184,114,26,0.3); color: #2a1a02; }
   #chub .btn.full { width: 100%; }
 
   #chub .msg { padding: 12px 14px; border-radius: 9px; font-size: 13.5px; margin-bottom: 14px; }
@@ -153,8 +159,10 @@
   #chub .winner-box {
     text-align: center; padding: 34px 20px; border-radius: 14px;
     background: linear-gradient(120deg,var(--db-navy),#0d3a6b,var(--db-blue-bright)); color: #fff; margin-bottom: 18px;
+    border: 2px solid var(--db-gold);
+    box-shadow: 0 0 24px rgba(255,194,60,0.18);
   }
-  #chub .winner-box .wlabel { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #8fc7ea; margin-bottom: 10px; }
+  #chub .winner-box .wlabel { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--db-gold); margin-bottom: 10px; }
   #chub .winner-box .wname { font-size: 30px; font-weight: 800; margin-bottom: 4px; }
   #chub .winner-box .whandle { font-size: 14px; color: #cfe4f2; }
   #chub .spin { font-size: 26px; font-weight: 800; opacity: 0.85; }
@@ -196,9 +204,9 @@
   .drawmode-name { font-size: 64px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 8px; }
   .drawmode-handle { font-size: 20px; color: #cfe4f2; margin-bottom: 40px; }
   .drawmode-btn {
-    background: linear-gradient(135deg,#d8912b,#b8721a); color: #fff; border: none;
+    background: linear-gradient(135deg,var(--db-gold),var(--db-gold-dark)); color: #2a1a02; border: none;
     padding: 20px 44px; font-size: 20px; font-weight: 800; border-radius: 100px; cursor: pointer;
-    box-shadow: 0 10px 40px rgba(216,145,43,0.4);
+    box-shadow: 0 10px 40px rgba(255,194,60,0.4);
   }
   .drawmode-btn:hover { filter: brightness(1.08); }
   .drawmode-count { font-size: 14px; color: #8fc7ea; margin-top: 16px; }
@@ -278,7 +286,6 @@
   });
 
   // ---------- STORAGE LAYER (Google Apps Script Web App + Sheet backend) ----------
-  // Paste the /exec URL of your deployed Apps Script Web App here after setup.
   const API_URL = "https://script.google.com/macros/s/AKfycbw5eIjeLy0U6Y9DB51j1QfrPf0pjncrgVTAVrqCAmoal9lxsuz0tfJV8ahDW2g47wc5mA/exec";
 
   async function apiCall(params){
@@ -828,8 +835,9 @@
         <p class="lede" style="margin-bottom:10px;">Ready-to-copy links for this campaign's prize machine — no more hand-typing the URL.</p>
         <label class="first" style="margin-top:0;">Which version</label>
         <select id="pm-version">
-          <option value="decathlon">Decathlon (blue)</option>
-          <option value="general">Mystery Prize Picker (red / general)</option>
+          <option value="decathlon" selected>Decathlon (blue)</option>
+          <option value="general">WIN Australia (red)</option>
+          <option value="global">WIN Global (gold)</option>
         </select>
         <label>Campaign slug</label>
         <input type="text" id="pm-slug" value="${esc(cfg.id)}" />
@@ -964,10 +972,15 @@
 
     // ---- Mystery Prize Picker link helper ----
     const PRIZE_MACHINE_BASE = "https://rizzydale.github.io/prize-machine/";
+    const PM_FILES = {
+      decathlon: 'prize_machine_decathlon.html',
+      general: 'prize_machine_general.html',
+      global: 'win-global-prize-picker.html'
+    };
     function renderPMLinks(){
       const version = document.getElementById('pm-version').value;
       const slug = document.getElementById('pm-slug').value.trim() || cfg.id;
-      const file = version === 'decathlon' ? 'prize_machine_decathlon.html' : 'prize_machine_general.html';
+      const file = PM_FILES[version] || PM_FILES.decathlon;
       const publicLink = `${PRIZE_MACHINE_BASE}${file}?campaign=${encodeURIComponent(slug)}`;
       const adminLink = `${PRIZE_MACHINE_BASE}${file}?campaign=${encodeURIComponent(slug)}&admin=1`;
       document.getElementById('pm-links').innerHTML = `
